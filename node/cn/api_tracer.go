@@ -163,7 +163,7 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 			return nil, fmt.Errorf("parent block #%d not found", number-1)
 		}
 	}
-	statedb, err := state.New(start.Root(), database, nil)
+	statedb, err := state.New(start.Root().ToExtHash(), database, nil)
 	if err != nil {
 		// If the starting state is missing, allow some number of blocks to be reexecuted
 		reexec := defaultTraceReexec
@@ -176,7 +176,7 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 			if start == nil {
 				break
 			}
-			if statedb, err = state.New(start.Root(), database, nil); err == nil {
+			if statedb, err = state.New(start.Root().ToExtHash(), database, nil); err == nil {
 				break
 			}
 		}
@@ -318,15 +318,15 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 				break
 			}
 			// Reference the trie twice, once for us, once for the trancer
-			database.TrieDB().Reference(root, common.Hash{})
+			database.TrieDB().Reference(root, common.ExtHash{})
 			if number >= origin {
-				database.TrieDB().Reference(root, common.Hash{})
+				database.TrieDB().Reference(root, common.ExtHash{})
 			}
 			// Dereference all past tries we ourselves are done working with
 			if !common.EmptyHash(proot) {
-				database.TrieDB().Dereference(proot)
+				database.TrieDB().Dereference(proot.ToExtHash())
 			}
-			proot = root
+			proot = root.ToHash()
 		}
 	}()
 
@@ -346,7 +346,7 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 			done[uint64(result.Block)] = result
 
 			// Dereference any paret tries held in memory by this task
-			database.TrieDB().Dereference(res.rootref)
+			database.TrieDB().Dereference(res.rootref.ToExtHash())
 
 			// Stream completed traces to the user, aborting on the first error
 			for result, ok := done[next]; ok; result, ok = done[next] {
@@ -676,7 +676,7 @@ func (api *PrivateDebugAPI) computeStateDB(block *types.Block, reexec uint64) (*
 	var err error
 
 	for i := uint64(0); i < reexec; i++ {
-		if statedb, err = state.New(block.Root(), database, nil); err == nil {
+		if statedb, err = state.New(block.Root().ToExtHash(), database, nil); err == nil {
 			break
 		}
 		blockNumber := block.NumberU64()
@@ -721,11 +721,11 @@ func (api *PrivateDebugAPI) computeStateDB(block *types.Block, reexec uint64) (*
 		if err := statedb.Reset(root); err != nil {
 			return nil, fmt.Errorf("state reset after block %d failed: %v", block.NumberU64(), err)
 		}
-		database.TrieDB().Reference(root, common.Hash{})
+		database.TrieDB().Reference(root, common.ExtHash{})
 		if !common.EmptyHash(proot) {
-			database.TrieDB().Dereference(proot)
+			database.TrieDB().Dereference(proot.ToExtHash())
 		}
-		proot = root
+		proot = root.ToHash()
 	}
 	nodeSize, preimageSize := database.TrieDB().Size()
 	logger.Info("Historical state regenerated", "block", block.NumberU64(), "elapsed", time.Since(start), "nodeSize", nodeSize, "preimageSize", preimageSize)

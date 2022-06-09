@@ -114,7 +114,7 @@ type (
 	}
 	storageChange struct {
 		account       *common.Address
-		key, prevalue common.Hash
+		key, prevalue common.ExtHash
 	}
 	codeChange struct {
 		account            *common.Address
@@ -126,10 +126,10 @@ type (
 		prev uint64
 	}
 	addLogChange struct {
-		txhash common.Hash
+		txhash common.ExtHash
 	}
 	addPreimageChange struct {
-		hash common.Hash
+		hash common.ExtHash
 	}
 	touchChange struct {
 		account   *common.Address
@@ -196,7 +196,7 @@ func (ch nonceChange) dirtied() *common.Address {
 }
 
 func (ch codeChange) revert(s *StateDB) {
-	s.getStateObject(*ch.account).setCode(common.BytesToHash(ch.prevhash), ch.prevcode)
+	s.getStateObject(*ch.account).setCode(common.BytesToExtHash(ch.prevhash), ch.prevcode)
 }
 
 func (ch codeChange) dirtied() *common.Address {

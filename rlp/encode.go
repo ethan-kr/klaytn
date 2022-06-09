@@ -26,6 +26,8 @@ import (
 	"math/big"
 	"reflect"
 	"sync"
+
+	//"github.com/klaytn/klaytn/common"
 )
 
 var (
@@ -350,6 +352,12 @@ var (
 // makeWriter creates a writer function for the given type.
 func makeWriter(typ reflect.Type, ts tags) (writer, error) {
 	kind := typ.Kind()
+	typeStr := fmt.Sprintf("%v", typ)
+	// hashOrNumber stuctureif typeStr == "common.ExtHash" || typeStr == "struct { Hash common.Hash; Number uint64 }" {
+	if typeStr == "common.ExtHash" {
+		//fmt.Printf("~~~~~~~~~ encode22 types kind = %v, type = %v\n", kind, typ)
+		return writeEthanByteArray, nil
+	}
 	switch {
 	case typ == rawValueType:
 		return writeRawValue, nil
@@ -444,7 +452,29 @@ func writeBigInt(i *big.Int, w *encbuf) error {
 }
 
 func writeBytes(val reflect.Value, w *encbuf) error {
-	w.encodeString(val.Bytes())
+	tmpVal := val.Bytes()
+	zeroCnt := 0
+	for _, v := range tmpVal {
+		if v == 0 {
+			zeroCnt+=1
+		}
+	}
+	/*
+	lenVal := len(tmpVal)
+	if lenVal != 65 && lenVal != 505 && lenVal != 0 && lenVal != 16 {
+		fmt.Printf("~~~~~~~~~~~~~~ ethanArray3 typ = %v, kind = %v, val = %x, len = %d\n", val.Type(), val.Type().Kind(), tmpVal, len(tmpVal))
+	}
+	*/
+
+	//fmt.Printf("~~~~~~~~~~~~~~ ethanArray typ = %v, kind = %v, val = %.40x, len = %d\n", val.Type(), val.Type().Kind(), tmpVal, len(tmpVal))
+	if len(tmpVal) == 40 && tmpVal[32] == 0 && tmpVal[33] == 0 && tmpVal[34] == 0    &&    tmpVal[36] == 0  && tmpVal[37] == 0 && zeroCnt < 14 {
+		//fmt.Printf("~~~~~~~~~~~~~~ ethanArray4 typ = %v, kind = %v, val = %x, len = %d\n", val.Type(), val.Type().Kind(), tmpVal, len(tmpVal))
+		w.encodeString(tmpVal[:32])
+		// recently version w.writeBytes(tmpVal[:32])
+	} else {
+		w.encodeString(tmpVal)
+		// recently version w.writeBytes(tmpVal)
+	}
 	return nil
 }
 
@@ -460,6 +490,26 @@ func writeByteArray(val reflect.Value, w *encbuf) error {
 	slice := val.Slice(0, size).Bytes()
 	w.encodeString(slice)
 	return nil
+}
+
+func writeEthanByteArray(val reflect.Value, w *encbuf) error {
+	/*
+	이렇게 하면 genesis 블럭에서 문제가 생김
+	tmpVal := val.Bytes()
+	fmt.Printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ethanWriteByteArray val = %x, len = %d\n", tmpVal, len(tmpVal))
+	w.encodeString(tmpVal[:32])
+	return nil
+	*/
+
+	/* 
+	제네시스 블럭을 잘 처리함
+	*/
+	//fmt.Printf("\n\n~~~~~~~~~~~~~~ ethanArray1 val = %x, len = %d\n\n\n", val.Field(0), val.Field(0).Len())
+	//return writeByteArray(val.Field(0), w)
+
+
+	fmt.Printf("~~~~~~~~~~~~~~ ethanArray1typ = %v, kind = %v, val = %.40x, len = %d\n", val.Type(), val.Type().Kind(), val.Field(0), val.Field(0).Len())
+	return writeByteArray(val.Field(0), w)
 }
 
 func writeString(val reflect.Value, w *encbuf) error {
@@ -538,6 +588,7 @@ func makeStructWriter(typ reflect.Type) (writer, error) {
 	writer := func(val reflect.Value, w *encbuf) error {
 		lh := w.list()
 		for _, f := range fields {
+			//fmt.Printf("\n\n* * * * * type = %v\n\n\n", typ)
 			if err := f.info.writer(val.Field(f.index), w); err != nil {
 				return err
 			}
@@ -654,3 +705,4 @@ func intsize(i uint64) (size int) {
 		}
 	}
 }
+

@@ -256,18 +256,23 @@ func (h *hasher) store(n node, db *Database, force bool) (node, uint16) {
 		if err := rlp.Encode(&h.tmp, n); err != nil {
 			panic("encode error: " + err.Error())
 		}
-
 		lenEncoded = uint16(len(h.tmp))
+
+		//fmt.Printf("===== n = %v, h.tmp = %x, len = %d\n", n, h.tmp, lenEncoded )
 	}
 	if lenEncoded < 32 && !force {
 		return n, lenEncoded // Nodes smaller than 32 bytes are stored inside their parent
 	}
 	if hash == nil {
 		hash = h.makeHashNode(h.tmp)
+		//fmt.Printf("~~~~~ hash2= %x, data = %x\n", hash, h.tmp) 
 	}
 	if db != nil {
 		// We are pooling the trie nodes into an intermediate memory cache
-		hash := common.BytesToHash(hash)
+		//byteHash := hash
+		hash := common.BytesToExtHash(hash)
+		//fmt.Printf("~~~~~ store bytelen = %d, byteHash = %x, ExtHash = %x\n", len(byteHash),  byteHash, hash)
+
 
 		db.lock.Lock()
 		db.insert(hash, lenEncoded, n)
@@ -293,9 +298,33 @@ func (h *hasher) store(n node, db *Database, force bool) (node, uint16) {
 }
 
 func (h *hasher) makeHashNode(data []byte) hashNode {
+	ethan_find(data)
 	n := make(hashNode, h.sha.Size())
 	h.sha.Reset()
 	h.sha.Write(data)
 	h.sha.Read(n)
+	//fmt.Printf("~~~~~ hash1= %x, data = %x\n", n, data)
 	return n
+}
+
+
+func ethan_find(data []byte) bool {
+	var (
+		findData = []byte{ 60, 117, 11, 154, 143 } // 030c0705000b090a080f  //3c750b9a8f  //  0x3c, 0x75, 0x0b, 0x9a, 0x8f}  //60, 117, 11, 154, 143 = 3,12,7,5,0,11,9,10,8,15}
+	)
+	dataLen := len(data)
+	findLen := len(findData)
+
+	for i:=0; i < dataLen - findLen; i+=1 {
+		j:=0
+		for j=0; j < findLen; j+=1 {
+			if data[i+j] != findData[j] {
+				break
+			}
+		}
+		if j == findLen {
+			return true
+		}
+	}
+	return false
 }

@@ -45,13 +45,13 @@ type NodeIterator struct {
 	stateIt statedb.NodeIterator // Primary iterator for the global state trie
 	dataIt  statedb.NodeIterator // Secondary iterator for the data trie of a contract
 
-	accountHash common.Hash // Hash of the node containing the account
-	codeHash    common.Hash // Hash of the contract source code
+	accountHash common.ExtHash // Hash of the node containing the account
+	codeHash    common.ExtHash // Hash of the contract source code
 	Code        []byte      // Source code associated with a contract
 
 	Type   string
-	Hash   common.Hash // Hash of the current entry being iterated (nil if not standalone)
-	Parent common.Hash // Hash of the first full ancestor node (nil if current is the root)
+	Hash   common.ExtHash // Hash of the current entry being iterated (nil if not standalone)
+	Parent common.ExtHash // Hash of the first full ancestor node (nil if current is the root)
 	Path   []byte      // the hex-encoded path to the current node.
 
 	Error error // Failure set in case of an internal error in the iteratord
@@ -136,9 +136,9 @@ func (it *NodeIterator) step() error {
 		}
 
 		if codeHash := pa.GetCodeHash(); !bytes.Equal(codeHash, emptyCodeHash) {
-			it.codeHash = common.BytesToHash(codeHash)
+			it.codeHash = common.BytesToExtHash(codeHash)
 			//addrHash := common.BytesToHash(it.stateIt.LeafKey())
-			it.Code, err = it.state.db.ContractCode(common.BytesToHash(codeHash))
+			it.Code, err = it.state.db.ContractCode(common.BytesToHash(codeHash).ToExtHash())
 			if err != nil {
 				return fmt.Errorf("code %x: %v", codeHash, err)
 			}
@@ -152,7 +152,7 @@ func (it *NodeIterator) step() error {
 // The method returns whether there are any more data left for inspection.
 func (it *NodeIterator) retrieve() bool {
 	// Clear out any previously set values
-	it.Hash = common.Hash{}
+	it.Hash = common.ExtHash{}
 	it.Path = []byte{}
 
 	// If the iteration's done, return no available data
@@ -169,7 +169,7 @@ func (it *NodeIterator) retrieve() bool {
 
 		it.Hash, it.Parent, it.Path = it.dataIt.Hash(), it.dataIt.Parent(), it.dataIt.Path()
 
-		if it.Parent == (common.Hash{}) {
+		if it.Parent == (common.ExtHash{}) {
 			it.Parent = it.accountHash
 		}
 	case it.Code != nil:
@@ -187,8 +187,9 @@ func (it *NodeIterator) retrieve() bool {
 }
 
 // CheckStateConsistencyParallel checks the consistency of all state/storage trie of given two state databases in parallel.
-func CheckStateConsistencyParallel(oldDB Database, newDB Database, root common.Hash, quitCh chan struct{}) error {
+func CheckStateConsistencyParallel(oldDB Database, newDB Database, root common.ExtHash, quitCh chan struct{}) error {
 	// Check if the tries can be called
+	//Ethan
 	_, err := oldDB.OpenTrie(root)
 	if err != nil {
 		return errors.WithMessage(err, "can not open oldDB trie")
@@ -248,7 +249,7 @@ func CheckStateConsistencyParallel(oldDB Database, newDB Database, root common.H
 
 // concurrentIterator checks the consistency of all state/storage trie of given two state database
 // and pass the result via the channel.
-func concurrentIterator(oldDB Database, newDB Database, root common.Hash, quit chan struct{}, resultCh chan struct{}, finishCh chan error) (resultErr error) {
+func concurrentIterator(oldDB Database, newDB Database, root common.ExtHash, quit chan struct{}, resultCh chan struct{}, finishCh chan error) (resultErr error) {
 	defer func() {
 		finishCh <- resultErr
 	}()
@@ -325,7 +326,7 @@ func concurrentIterator(oldDB Database, newDB Database, root common.Hash, quit c
 }
 
 // CheckStateConsistency checks the consistency of all state/storage trie of given two state database.
-func CheckStateConsistency(oldDB Database, newDB Database, root common.Hash, mapSize int, quit chan struct{}) error {
+func CheckStateConsistency(oldDB Database, newDB Database, root common.ExtHash, mapSize int, quit chan struct{}) error {
 	// Create and iterate a state trie rooted in a sub-node
 	oldState, err := New(root, oldDB, nil)
 	if err != nil {
@@ -341,7 +342,7 @@ func CheckStateConsistency(oldDB Database, newDB Database, root common.Hash, map
 	newIt := NewNodeIterator(newState)
 
 	cnt := 0
-	nodes := make(map[common.Hash]struct{}, mapSize)
+	nodes := make(map[common.ExtHash]struct{}, mapSize)
 
 	lastTime := time.Now()
 	report := func() {
@@ -393,7 +394,7 @@ func CheckStateConsistency(oldDB Database, newDB Database, root common.Hash, map
 			}
 		}
 
-		if !common.EmptyHash(oldIt.Hash) {
+		if !common.EmptyExtHash(oldIt.Hash) {
 			nodes[oldIt.Hash] = struct{}{}
 		}
 

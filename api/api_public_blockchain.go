@@ -221,8 +221,8 @@ func (s *PublicBlockChainAPI) GetStorageAt(ctx context.Context, address common.A
 	if err != nil {
 		return nil, err
 	}
-	res := state.GetState(address, common.HexToHash(key))
-	return res[:], state.Error()
+	res := state.GetState(address, common.HexToExtHash(key))
+	return res.Bytes(), state.Error()
 }
 
 // GetAccountKey returns the account key of EOA at a given address.

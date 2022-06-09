@@ -21,6 +21,7 @@
 package statedb
 
 import (
+	"fmt"
 	"github.com/klaytn/klaytn/common"
 )
 
@@ -52,7 +53,7 @@ type SecureTrie struct {
 // Loaded nodes are kept around until their 'cache generation' expires.
 // A new cache generation is created by each call to Commit.
 // cachelimit sets the number of past cache generations to keep.
-func NewSecureTrie(root common.Hash, db *Database) (*SecureTrie, error) {
+func NewSecureTrie(root common.ExtHash, db *Database) (*SecureTrie, error) {
 	if db == nil {
 		panic("statedb.NewSecureTrie called without a database")
 	}
@@ -63,7 +64,7 @@ func NewSecureTrie(root common.Hash, db *Database) (*SecureTrie, error) {
 	return &SecureTrie{trie: *trie}, nil
 }
 
-func NewSecureTrieForPrefetching(root common.Hash, db *Database) (*SecureTrie, error) {
+func NewSecureTrieForPrefetching(root common.ExtHash, db *Database) (*SecureTrie, error) {
 	if db == nil {
 		panic("statedb.NewSecureTrieForPrefetching called without a database")
 	}
@@ -162,7 +163,7 @@ func (t *SecureTrie) GetKey(shaKey []byte) []byte {
 //
 // Committing flushes nodes from memory. Subsequent Get calls will load nodes
 // from the database.
-func (t *SecureTrie) Commit(onleaf LeafCallback) (root common.Hash, err error) {
+func (t *SecureTrie) Commit(onleaf LeafCallback) (root common.ExtHash, err error) {
 	// Write all the pre-images to the actual disk database
 	if len(t.getSecKeyCache()) > 0 {
 		t.trie.db.lock.Lock()
@@ -177,7 +178,7 @@ func (t *SecureTrie) Commit(onleaf LeafCallback) (root common.Hash, err error) {
 	return t.trie.Commit(onleaf)
 }
 
-func (t *SecureTrie) Hash() common.Hash {
+func (t *SecureTrie) Hash() common.ExtHash {
 	return t.trie.Hash()
 }
 
@@ -198,9 +199,15 @@ func (t *SecureTrie) NodeIterator(start []byte) NodeIterator {
 func (t *SecureTrie) hashKey(key []byte) []byte {
 	h := newHasher(nil)
 	h.sha.Reset()
-	h.sha.Write(key)
+	//Ethan
+	if len(key) == 40 && key[32] == 0 && key[34] == 0 && key[36] == 0 && key[38] == 0 {
+		h.sha.Write(key[:32])
+	} else {
+		h.sha.Write(key)
+	}
 	buf := h.sha.Sum(t.hashKeyBuf[:0])
 	returnHasherToPool(h)
+	fmt.Printf("~~~~~ sercure key = %x, len = %d, hashkey = %x, hashlen = %d\n", key, len(key), buf, len(buf))
 	return buf
 }
 

@@ -145,7 +145,7 @@ func findBlockWithState(db database.DBManager) *types.Block {
 	}
 
 	startBlock := headBlock
-	for _, err := state.New(headBlock.Root(), state.NewDatabase(db), nil); err != nil; {
+	for _, err := state.New(headBlock.Root().ToExtHash(), state.NewDatabase(db), nil); err != nil; {
 		if headBlock.NumberU64() == 0 {
 			logger.Crit("failed to find state from the head block to the genesis block",
 				"headBlockNum", headBlock.NumberU64(),
@@ -294,7 +294,7 @@ func (g *Genesis) ToBlock(baseStateRoot common.Hash, db database.DBManager) *typ
 	if db == nil {
 		db = database.NewMemoryDBManager()
 	}
-	stateDB, _ := state.New(baseStateRoot, state.NewDatabase(db), nil)
+	stateDB, _ := state.New(baseStateRoot.ToExtHash(), state.NewDatabase(db), nil)
 	for addr, account := range g.Alloc {
 		if len(account.Code) != 0 {
 			originalCode := stateDB.GetCode(addr)
@@ -307,7 +307,7 @@ func (g *Genesis) ToBlock(baseStateRoot common.Hash, db database.DBManager) *typ
 			}
 		}
 		for key, value := range account.Storage {
-			stateDB.SetState(addr, key, value)
+			stateDB.SetState(addr, key.ToExtHash(), value.ToExtHash())
 		}
 		stateDB.AddBalance(addr, account.Balance)
 		stateDB.SetNonce(addr, account.Nonce)
@@ -322,7 +322,7 @@ func (g *Genesis) ToBlock(baseStateRoot common.Hash, db database.DBManager) *typ
 		Governance: g.Governance,
 		GasUsed:    g.GasUsed,
 		BlockScore: g.BlockScore,
-		Root:       root,
+		Root:       root.ToHash(),
 	}
 	if g.BlockScore == nil {
 		head.BlockScore = params.GenesisBlockScore

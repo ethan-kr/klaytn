@@ -394,7 +394,7 @@ func opSha3(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Sta
 	evm.interpreter.hasher.Read(evm.interpreter.hasherBuf[:])
 
 	if evm.vmConfig.EnablePreimageRecording {
-		evm.StateDB.AddPreimage(evm.interpreter.hasherBuf, data)
+		evm.StateDB.AddPreimage(evm.interpreter.hasherBuf.ToExtHash(), data)
 	}
 	stack.push(evm.interpreter.intPool.get().SetBytes(evm.interpreter.hasherBuf[:]))
 
@@ -620,15 +620,17 @@ func opMstore8(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *
 
 func opSload(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
 	loc := stack.Peek()
-	val := evm.StateDB.GetState(contract.Address(), common.BigToHash(loc))
-	loc.SetBytes(val.Bytes())
+	val := evm.StateDB.GetState(contract.Address(), common.BigToExtHash(loc))
+	//loc.SetBytes(val.Bytes())
+	//아래 코드를 해줘야 opcode를 잘 동작함
+	loc.SetBytes(val.Bytes()[:32])
 	return nil, nil
 }
 
 func opSstore(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
-	loc := common.BigToHash(stack.pop())
+	loc := common.BigToExtHash(stack.pop())
 	val := stack.pop()
-	evm.StateDB.SetState(contract.Address(), loc, common.BigToHash(val))
+	evm.StateDB.SetState(contract.Address(), loc, common.BigToExtHash(val))
 
 	evm.interpreter.intPool.put(val)
 	return nil, nil

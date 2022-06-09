@@ -193,6 +193,14 @@ var (
 
 func makeDecoder(typ reflect.Type, tags tags) (dec decoder, err error) {
 	kind := typ.Kind()
+	//typStr := fmt.Sprintf("%v", typ)
+	//if typStr == "common.ExtHash" {
+	//	fmt.Printf("~~~~~~~~~ decode types exthash kind = %v, type = %v\n", kind, typ)
+		//return makeListDecoder(typ, tags)
+		//return decodeByteArray, nil
+		//return decodeString, nil
+	//}
+	//fmt.Printf("~~~~~~~~~ decode types kind = %v, type = %v\n", kind, typ)
 	switch {
 	case typ == rawValueType:
 		return decodeRawValue, nil
@@ -398,6 +406,11 @@ func decodeByteArray(s *Stream, val reflect.Value) error {
 		return err
 	}
 	vlen := val.Len()
+	/*
+	if size == 32 || vlen == 32 {
+		fmt.Printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ethanArray9 typ = %v, kind = %v, size = %d, len = %d\n", val.Type(), val.Type().Kind(), size, vlen )
+	}
+	*/
 	switch kind {
 	case Byte:
 		if vlen == 0 {
@@ -435,18 +448,49 @@ func makeStructDecoder(typ reflect.Type) (decoder, error) {
 		return nil, err
 	}
 	dec := func(s *Stream, val reflect.Value) (err error) {
-		if _, err := s.List(); err != nil {
+		typStr := fmt.Sprintf("%v", typ)
+		size := uint64(0)
+		size, err = s.List()
+		extFlag := (typStr == "common.ExtHash"  && size == 32)
+		if err != nil && !extFlag {
+			//fmt.Printf("~~~~~~ makeStructDecoder typStr = %s, size = %d, error = %s\n", typStr, size, err.Error())
 			return wrapStreamError(err, typ)
 		}
-		for _, f := range fields {
-			err := f.info.decoder(s, val.Field(f.index))
-			if err == EOL {
-				return &decodeError{msg: "too few elements", typ: typ}
-			} else if err != nil {
-				return addErrorContext(err, "."+typ.Field(f.index).Name)
+		err = nil
+		//if typStr == "common.ExtHash" && size != 32{
+		//	fmt.Printf("\n\n\n\n\n\n\n\n\n\n\n~~~~~~~~~ makeStructDecoder typeStr=%s, val=%x, valSize = %d\n\n\n\n\n\n\n\n", typStr, val, size)
+		//}
+		for i, f := range fields {
+			if extFlag && i == 0 {
+				err = f.info.decoder(s, val.Field(f.index))
+				//err := decodeByteArray(s, val)
+				//err := decodeByteSlice(s, val)
+				//err := f.info.decoder(s, val.Field(f.index))
+				if err != nil {
+					return addErrorContext(err, "."+typ.Field(f.index).Name)
+				}
+			} else if extFlag && i > 0 {
+				val.Field(f.index).SetUint(0)
+			} else {
+				err = f.info.decoder(s, val.Field(f.index))
+				if err == EOL {
+					return &decodeError{msg: "too few elements", typ: typ}
+				} else if err != nil {
+					return addErrorContext(err, "."+typ.Field(f.index).Name)
+				}
 			}
 		}
-		return wrapStreamError(s.ListEnd(), typ)
+		//return wrapStreamError(s.ListEnd(), typ)
+		if !extFlag {
+			err = wrapStreamError(s.ListEnd(), typ)
+		//} else {
+			//fmt.Printf("~~~~~~~~~ makeStructDecoder ExtHash.Hash %v, valSize = %d\n", val, size)
+			//err = wrapStreamError(s.ListEndExt(), typ)
+		}
+		//if err != nil {
+		//	fmt.Printf("~~~~~~~~~ makeStructDecoder type = %v, err = %s\n", typ, err.Error())
+		//}
+		return err
 	}
 	return dec, nil
 }
@@ -780,10 +824,12 @@ func (s *Stream) Bool() (bool, error) {
 func (s *Stream) List() (size uint64, err error) {
 	kind, size, err := s.Kind()
 	if err != nil {
-		return 0, err
+		//Ethan return 0, err
+		return size, err
 	}
 	if kind != List {
-		return 0, ErrExpectedList
+		//Ethan return 0, ErrExpectedList
+		return size, ErrExpectedList
 	}
 	s.stack = append(s.stack, listpos{0, size})
 	s.kind = -1
@@ -804,6 +850,21 @@ func (s *Stream) ListEnd() error {
 	s.stack = s.stack[:len(s.stack)-1] // pop
 	if len(s.stack) > 0 {
 		s.stack[len(s.stack)-1].pos += tos.size
+	}
+	s.kind = -1
+	s.size = 0
+	return nil
+}
+
+func (s *Stream) ListEndExt() error {
+	if len(s.stack) == 0 {
+		return errNotInList
+	}
+	tos := s.stack[len(s.stack)-1]
+
+	s.stack = s.stack[:len(s.stack)-1] // pop
+	if len(s.stack) > 0 {
+		s.stack[len(s.stack)-1].pos += tos.pos
 	}
 	s.kind = -1
 	s.size = 0

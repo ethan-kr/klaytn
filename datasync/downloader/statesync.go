@@ -473,9 +473,9 @@ func (s *stateSync) processNodeData(blob []byte) (bool, common.Hash, error) {
 	res := statedb.SyncResult{Data: blob}
 	s.keccak.Reset()
 	s.keccak.Write(blob)
-	s.keccak.Sum(res.Hash[:0])
+	s.keccak.Sum(res.Hash.ToHash().Bytes())
 	committed, _, err := s.sched.Process([]statedb.SyncResult{res})
-	return committed, res.Hash, err
+	return committed, res.Hash.ToHash(), err
 }
 
 // updateStats bumps the various state sync progress counters and displays a log

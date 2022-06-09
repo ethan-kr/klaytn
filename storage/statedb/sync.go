@@ -41,7 +41,7 @@ var ErrAlreadyProcessed = errors.New("already processed")
 
 // request represents a scheduled or already in-flight state retrieval request.
 type request struct {
-	hash common.Hash // Hash of the node data content to retrieve
+	hash common.ExtHash // Hash of the node data content to retrieve
 	data []byte      // Data content of the node, cached until all subtrees complete
 	raw  bool        // Whether this is a raw entry (code) or a trie node
 
@@ -55,7 +55,7 @@ type request struct {
 // SyncResult is a simple list to return missing nodes along with their request
 // hashes.
 type SyncResult struct {
-	Hash common.Hash // Hash of the originally unknown trie node
+	Hash common.ExtHash // Hash of the originally unknown trie node
 	Data []byte      // Data content of the retrieved node
 	Err  error
 }
@@ -63,15 +63,15 @@ type SyncResult struct {
 // syncMemBatch is an in-memory buffer of successfully downloaded but not yet
 // persisted data items.
 type syncMemBatch struct {
-	batch map[common.Hash][]byte // In-memory membatch of recently completed items
-	order []common.Hash          // Order of completion to prevent out-of-order data loss
+	batch map[common.ExtHash][]byte // In-memory membatch of recently completed items
+	order []common.ExtHash          // Order of completion to prevent out-of-order data loss
 }
 
 // newSyncMemBatch allocates a new memory-buffer for not-yet persisted trie nodes.
 func newSyncMemBatch() *syncMemBatch {
 	return &syncMemBatch{
-		batch: make(map[common.Hash][]byte),
-		order: make([]common.Hash, 0, 256),
+		batch: make(map[common.ExtHash][]byte),
+		order: make([]common.ExtHash, 0, 256),
 	}
 }
 
@@ -86,7 +86,7 @@ type StateTrieReadDB interface {
 type TrieSync struct {
 	database         StateTrieReadDB          // Persistent database to check for existing entries
 	membatch         *syncMemBatch            // Memory buffer to avoid frequent database writes
-	requests         map[common.Hash]*request // Pending requests pertaining to a key hash
+	requests         map[common.ExtHash]*request // Pending requests pertaining to a key hash
 	queue            *prque.Prque             // Priority queue with the pending requests
 	retrievedByDepth map[int]int              // Retrieved trie node number counted by depth
 	committedByDepth map[int]int              // Committed trie nodes number counted by depth
@@ -96,24 +96,25 @@ type TrieSync struct {
 
 // NewTrieSync creates a new trie data download scheduler.
 // If both bloom and cache are set, only cache is used.
-func NewTrieSync(root common.Hash, database StateTrieReadDB, callback LeafCallback, bloom *SyncBloom, lruCache *lru.Cache) *TrieSync {
+func NewTrieSync(root common.ExtHash, database StateTrieReadDB, callback LeafCallback, bloom *SyncBloom, lruCache *lru.Cache) *TrieSync {
 	ts := &TrieSync{
 		database:         database,
 		membatch:         newSyncMemBatch(),
-		requests:         make(map[common.Hash]*request),
+		requests:         make(map[common.ExtHash]*request),
 		queue:            prque.New(),
 		retrievedByDepth: make(map[int]int),
 		committedByDepth: make(map[int]int),
 		bloom:            bloom,
 		exist:            lruCache,
 	}
-	ts.AddSubTrie(root, 0, common.Hash{}, callback)
+	ts.AddSubTrie(root, 0, common.ExtHash{}, callback)
 	return ts
 }
 
 // AddSubTrie registers a new trie to the sync code, rooted at the designated parent.
-func (s *TrieSync) AddSubTrie(root common.Hash, depth int, parent common.Hash, callback LeafCallback) {
+func (s *TrieSync) AddSubTrie(root common.ExtHash, depth int, parent common.ExtHash, callback LeafCallback) {
 	// Short circuit if the trie is empty or already known
+
 	if root == emptyRoot {
 		return
 	}
@@ -125,9 +126,9 @@ func (s *TrieSync) AddSubTrie(root common.Hash, depth int, parent common.Hash, c
 			// already written in migration, skip the node
 			return
 		}
-	} else if s.bloom == nil || s.bloom.Contains(root[:]) {
+	} else if s.bloom == nil || s.bloom.Contains(root.Bytes()) {
 		// Bloom filter says this might be a duplicate, double check
-		if ok, _ := s.database.HasStateTrieNode(root[:]); ok {
+		if ok, _ := s.database.HasStateTrieNode(root.Bytes()); ok {
 			logger.Info("skip write node in migration by ReadStateTrieNode", "AddSubTrie", root.String())
 			return
 		}
@@ -141,7 +142,7 @@ func (s *TrieSync) AddSubTrie(root common.Hash, depth int, parent common.Hash, c
 		callback: callback,
 	}
 	// If this sub-trie has a designated parent, link them together
-	if parent != (common.Hash{}) {
+	if parent != (common.ExtHash{}) {
 		ancestor := s.requests[parent]
 		if ancestor == nil {
 			panic(fmt.Sprintf("sub-trie ancestor not found: %x", parent))
@@ -156,9 +157,9 @@ func (s *TrieSync) AddSubTrie(root common.Hash, depth int, parent common.Hash, c
 // interpreted as a trie node, but rather accepted and stored into the database
 // as is. This method's goal is to support misc state metadata retrievals (e.g.
 // contract code).
-func (s *TrieSync) AddRawEntry(hash common.Hash, depth int, parent common.Hash) {
+func (s *TrieSync) AddRawEntry(hash common.ExtHash, depth int, parent common.ExtHash) {
 	// Short circuit if the entry is empty or already known
-	if hash == emptyState {
+	if hash == emptyState.ToExtHash() {
 		return
 	}
 	if _, ok := s.membatch.batch[hash]; ok {
@@ -169,7 +170,7 @@ func (s *TrieSync) AddRawEntry(hash common.Hash, depth int, parent common.Hash) 
 			// already written in migration, skip the node
 			return
 		}
-	} else if s.bloom == nil || s.bloom.Contains(hash[:]) {
+	} else if s.bloom == nil || s.bloom.Contains(hash.Bytes()) {
 		// Bloom filter says this might be a duplicate, double check
 		if ok, _ := s.database.HasStateTrieNode(hash.Bytes()); ok {
 			return
@@ -184,7 +185,7 @@ func (s *TrieSync) AddRawEntry(hash common.Hash, depth int, parent common.Hash) 
 		depth: depth,
 	}
 	// If this sub-trie has a designated parent, link them together
-	if parent != (common.Hash{}) {
+	if parent != (common.ExtHash{}) {
 		ancestor := s.requests[parent]
 		if ancestor == nil {
 			panic(fmt.Sprintf("raw-entry ancestor not found: %x", parent))
@@ -227,7 +228,7 @@ func (s *TrieSync) Process(results []SyncResult) (bool, int, error) {
 			continue
 		}
 		// Decode the node data content and update the request
-		node, err := decodeNode(item.Hash[:], item.Data)
+		node, err := decodeNode(item.Hash.Bytes(), item.Data)
 		if err != nil {
 			return committed, i, err
 		}
@@ -256,12 +257,12 @@ func (s *TrieSync) Process(results []SyncResult) (bool, int, error) {
 func (s *TrieSync) Commit(dbw database.KeyValueWriter) (int, error) {
 	// Dump the membatch into a database dbw
 	for i, key := range s.membatch.order {
-		if err := dbw.Put(key[:], s.membatch.batch[key]); err != nil {
+		if err := dbw.Put(key.Bytes(), s.membatch.batch[key]); err != nil {
 			return i, err
 		}
 
 		if s.bloom != nil {
-			s.bloom.Add(key[:])
+			s.bloom.Add(key.Bytes())
 		}
 
 		if s.exist != nil {
@@ -340,7 +341,7 @@ func (s *TrieSync) children(req *request, object node) ([]*request, error) {
 		// If the child references another node, resolve or schedule
 		if node, ok := (child.node).(hashNode); ok {
 			// Try to resolve the node from the local database
-			hash := common.BytesToHash(node)
+			hash := common.BytesToExtHash(node)
 			if _, ok := s.membatch.batch[hash]; ok {
 				continue
 			}

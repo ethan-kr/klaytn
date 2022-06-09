@@ -28,6 +28,7 @@ import (
 	"math/big"
 	"math/rand"
 	"reflect"
+	"encoding/binary"
 
 	"github.com/klaytn/klaytn/common/hexutil"
 	"github.com/klaytn/klaytn/crypto/sha3"
@@ -35,6 +36,7 @@ import (
 
 const (
 	HashLength      = 32
+	ExtHashLength   = 40
 	AddressLength   = 20
 	SignatureLength = 65
 )
@@ -54,6 +56,82 @@ var (
 // Hash represents the 32 byte Keccak256 hash of arbitrary data.
 type Hash [HashLength]byte
 
+type ExtHash struct {
+	Hash		Hash
+	BlockNum	uint32
+	Idx		uint32
+}
+
+func (h ExtHash) Bytes() []byte { 
+	var hashKey [40]byte
+
+	tmpBuf := make([]byte, 4)
+
+	copy(hashKey[:], h.Hash[:])
+	binary.LittleEndian.PutUint32(tmpBuf, uint32(h.BlockNum))
+	copy(hashKey[32:], tmpBuf)
+	binary.LittleEndian.PutUint32(tmpBuf, uint32(h.Idx))
+	copy(hashKey[36:], tmpBuf)
+
+	return hashKey[:]
+}
+
+func BytesToExtHash(b []byte) ExtHash {
+	var h ExtHash
+	if len(b) == ExtHashLength {
+		b = b[len(b)-ExtHashLength:]
+		copy(h.Hash[ExtHashLength-len(b):], b)
+		h.BlockNum = binary.LittleEndian.Uint32(b[32:36])
+		h.Idx = binary.LittleEndian.Uint32(b[36:40])
+	} else {
+		if len(b) > HashLength {
+			b = b[len(b)-HashLength:]
+		}
+		copy(h.Hash[HashLength-len(b):], b)
+	}
+	return h
+
+	/*
+	if len(b) > ExtHashLength {
+		b = b[len(b)-ExtHashLength:]
+	}
+	//copy(h.Hash[ExtHashLength-len(b):], b)
+	copy(h.Hash[:],b[:])
+	if len(b) == ExtHashLength {
+		h.BlockNum = binary.LittleEndian.Uint32(b[32:36])
+		h.Idx = binary.LittleEndian.Uint32(b[36:40])
+	}
+	return h
+	*/
+}
+
+func EmptyExtHash(h ExtHash) bool {
+	return h == ExtHash{}
+}
+
+func (h ExtHash) String() string {
+	return hexutil.Encode(h.Bytes())
+}
+
+func (h ExtHash) ToHash() Hash {
+	return h.Hash
+}
+
+func (h ExtHash) getShardIndex(shardMask int) int {
+	return h.Hash.getShardIndex(shardMask)
+}
+
+func BigToExtHash(b *big.Int) ExtHash { return BytesToExtHash(b.Bytes()) }
+
+func HexToExtHash(s string) ExtHash { return BytesToExtHash(FromHex(s)) }
+
+func (h Hash) ToExtHash() (ExtH ExtHash) {
+	ExtH.Hash = h
+	ExtH.BlockNum = 0
+	ExtH.Idx = 0
+	return ExtH
+}
+
 // BytesToHash sets b to hash.
 // If b is larger than len(h), b will be cropped from the left.
 func BytesToHash(b []byte) Hash {
@@ -61,6 +139,7 @@ func BytesToHash(b []byte) Hash {
 	h.SetBytes(b)
 	return h
 }
+
 
 // BigToHash sets byte representation of b to hash.
 // If b is larger than len(h), b will be cropped from the left.
@@ -115,11 +194,14 @@ func (h Hash) MarshalText() ([]byte, error) {
 // SetBytes sets the hash to the value of b.
 // If b is larger than len(h), b will be cropped from the left.
 func (h *Hash) SetBytes(b []byte) {
+	//fmt.Printf("~~~~~~~~~~ common.SetBytes11 data = %x\n", b)
 	if len(b) > len(h) {
 		b = b[len(b)-HashLength:]
 	}
+	//fmt.Printf("~~~~~~~~~~ common.SetBytes12 data = %x\n", b)
 
 	copy(h[HashLength-len(b):], b)
+	//Ethan propose.. copy(h[:], b)
 }
 
 // Generate implements testing/quick.Generator.

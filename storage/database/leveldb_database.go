@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"strings"
 
 	klaytnmetrics "github.com/klaytn/klaytn/metrics"
 
@@ -277,6 +278,10 @@ func (db *levelDB) Put(key []byte, value []byte) error {
 }
 
 func (db *levelDB) put(key []byte, value []byte) error {
+	if strings.Index(db.fn, "/home/ubuntu/.__debug_bin/klay/chaindata/statetrie") >= 0 {
+		panic("state trie putted")
+	}
+	fmt.Printf("~~~~~ PUT = %x, value = %.40x(..%d)//\n",key, value, len(value))
 	return db.db.Put(key, value, nil)
 }
 
@@ -299,11 +304,13 @@ func (db *levelDB) Get(key []byte) ([]byte, error) {
 func (db *levelDB) get(key []byte) ([]byte, error) {
 	dat, err := db.db.Get(key, nil)
 	if err != nil {
+		fmt.Printf("~~~~~ GET %x/ err = %s/\n",key, err.Error())
 		if err == leveldb.ErrNotFound {
 			return nil, dataNotFoundErr
 		}
 		return nil, err
 	}
+	fmt.Printf("~~~~~ GET %x, value = %.40x(..%d)//\n",key, dat, len(dat))
 	return dat, nil
 }
 
@@ -519,6 +526,7 @@ type ldbBatch struct {
 
 // Put inserts the given value into the batch for later committing.
 func (b *ldbBatch) Put(key, value []byte) error {
+	fmt.Printf("~~~~~BPUT = %x, value = %.40x(..%d)//\n",key, value, len(value))
 	b.b.Put(key, value)
 	b.size += len(value)
 	return nil

@@ -34,7 +34,7 @@ import (
 // LRU cache is mendatory when state syncing and block processing are executed simultaneously
 func NewStateSync(root common.Hash, database statedb.StateTrieReadDB, bloom *statedb.SyncBloom, lruCache *lru.Cache) *statedb.TrieSync {
 	var syncer *statedb.TrieSync
-	callback := func(leaf []byte, parent common.Hash, parentDepth int) error {
+	callback := func(leaf []byte, parent common.ExtHash, parentDepth int) error {
 		serializer := account.NewAccountSerializer()
 		if err := rlp.Decode(bytes.NewReader(leaf), serializer); err != nil {
 			return err
@@ -42,10 +42,10 @@ func NewStateSync(root common.Hash, database statedb.StateTrieReadDB, bloom *sta
 		obj := serializer.GetAccount()
 		if pa := account.GetProgramAccount(obj); pa != nil {
 			syncer.AddSubTrie(pa.GetStorageRoot(), parentDepth+1, parent, nil)
-			syncer.AddRawEntry(common.BytesToHash(pa.GetCodeHash()), parentDepth+1, parent)
+			syncer.AddRawEntry(common.BytesToExtHash(pa.GetCodeHash()), parentDepth+1, parent)
 		}
 		return nil
 	}
-	syncer = statedb.NewTrieSync(root, database, callback, bloom, lruCache)
+	syncer = statedb.NewTrieSync(root.ToExtHash(), database, callback, bloom, lruCache)
 	return syncer
 }

@@ -110,7 +110,7 @@ func (t *SecureTrie) Prove(key []byte, fromLevel uint, proofDB database.DBManage
 // VerifyProof checks merkle proofs. The given proof must contain the value for
 // key in a trie with the given root hash. VerifyProof returns an error if the
 // proof contains invalid trie nodes or the wrong value.
-func VerifyProof(rootHash common.Hash, key []byte, proofDB database.DBManager) (value []byte, err error, nodes int) {
+func VerifyProof(rootHash common.ExtHash, key []byte, proofDB database.DBManager) (value []byte, err error, nodes int) {
 	key = keybytesToHex(key)
 	wantHash := rootHash
 	for i := 0; ; i++ {
@@ -118,18 +118,20 @@ func VerifyProof(rootHash common.Hash, key []byte, proofDB database.DBManager) (
 		if buf == nil {
 			return nil, fmt.Errorf("proof node %d (hash %064x) missing", i, wantHash), i
 		}
-		n, err := decodeNode(wantHash[:], buf)
+		n, err := decodeNode(wantHash.Bytes(), buf)
 		if err != nil {
 			return nil, fmt.Errorf("bad proof node %d: %v", i, err), i
 		}
 		keyrest, cld := get(n, key, true)
+		//func get(tn node, key []byte, skipResolved bool) ([]byte, node) {
 		switch cld := cld.(type) {
 		case nil:
 			// The trie doesn't contain the key.
 			return nil, nil, i
 		case hashNode:
 			key = keyrest
-			copy(wantHash[:], cld)
+			//copy(wantHash[:], cld)
+			wantHash = common.BytesToExtHash(cld)
 		case valueNode:
 			return cld, nil, i + 1
 		}
@@ -141,14 +143,14 @@ func VerifyProof(rootHash common.Hash, key []byte, proofDB database.DBManager) (
 // necessary nodes will be resolved and leave the remaining as hashnode.
 //
 // The given edge proof is allowed to be an existent or non-existent proof.
-func proofToPath(rootHash common.Hash, root node, key []byte, proofDb database.DBManager, allowNonExistent bool) (node, []byte, error) {
+func proofToPath(rootHash common.ExtHash, root node, key []byte, proofDb database.DBManager, allowNonExistent bool) (node, []byte, error) {
 	// resolveNode retrieves and resolves trie node from merkle proof stream
-	resolveNode := func(hash common.Hash) (node, error) {
+	resolveNode := func(hash common.ExtHash) (node, error) {
 		buf, _ := proofDb.ReadCachedTrieNode(hash)
 		if buf == nil {
 			return nil, fmt.Errorf("proof node (hash %064x) missing", hash)
 		}
-		n, err := decodeNode(hash[:], buf)
+		n, err := decodeNode(hash.Bytes(), buf)
 		if err != nil {
 			return nil, fmt.Errorf("bad proof node %v", err)
 		}
@@ -189,7 +191,7 @@ func proofToPath(rootHash common.Hash, root node, key []byte, proofDb database.D
 			key, parent = keyrest, child // Already resolved
 			continue
 		case hashNode:
-			child, err = resolveNode(common.BytesToHash(cld))
+			child, err = resolveNode(common.BytesToExtHash(cld))
 			if err != nil {
 				return nil, nil, err
 			}
@@ -475,7 +477,7 @@ func hasRightElement(node node, key []byte) bool {
 // Note: This method does not verify that the proof is of minimal form. If the input
 // proofs are 'bloated' with neighbour leaves or random data, aside from the 'useful'
 // data, then the proof will still be accepted.
-func VerifyRangeProof(rootHash common.Hash, firstKey []byte, lastKey []byte, keys [][]byte, values [][]byte, proof database.DBManager) (bool, error) {
+func VerifyRangeProof(rootHash common.ExtHash, firstKey []byte, lastKey []byte, keys [][]byte, values [][]byte, proof database.DBManager) (bool, error) {
 	if len(keys) != len(values) {
 		return false, fmt.Errorf("inconsistent proof data, keys: %d, values: %d", len(keys), len(values))
 	}
@@ -488,7 +490,7 @@ func VerifyRangeProof(rootHash common.Hash, firstKey []byte, lastKey []byte, key
 	// Special case, there is no edge proof at all. The given range is expected
 	// to be the whole leaf-set in the trie.
 	if proof == nil {
-		tr, _ := NewTrie(common.Hash{}, NewDatabase(database.NewMemoryDBManager()))
+		tr, _ := NewTrie(common.ExtHash{}, NewDatabase(database.NewMemoryDBManager()))
 		for index, key := range keys {
 			tr.TryUpdate(key, values[index])
 		}

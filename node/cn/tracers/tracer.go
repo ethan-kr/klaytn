@@ -227,10 +227,10 @@ func (dw *dbWrapper) pushObject(vm *duktape.Context) {
 		hash := popSlice(ctx)
 		addr := popSlice(ctx)
 
-		state := dw.db.GetState(common.BytesToAddress(addr), common.BytesToHash(hash))
+		state := dw.db.GetState(common.BytesToAddress(addr), common.BytesToExtHash(hash))
 
-		ptr := ctx.PushFixedBuffer(len(state))
-		copy(makeSlice(ptr, uint(len(state))), state[:])
+		ptr := ctx.PushFixedBuffer(len(state.Bytes()))
+		copy(makeSlice(ptr, uint(len(state.Bytes()))), state.Bytes())
 		return 1
 	})
 	vm.PutPropString(obj, "getState")

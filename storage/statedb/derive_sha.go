@@ -38,5 +38,5 @@ func (d DeriveShaOrig) DeriveSha(list types.DerivableList) common.Hash {
 		rlp.Encode(keybuf, uint(i))
 		trie.Update(keybuf.Bytes(), list.GetRlp(i))
 	}
-	return trie.Hash()
+	return trie.Hash().ToHash()
 }

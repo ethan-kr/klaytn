@@ -100,13 +100,13 @@ var (
 func gasSStore(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
 	var (
 		y, x    = stack.Back(1), stack.Back(0)
-		current = evm.StateDB.GetState(contract.Address(), common.BigToHash(x))
+		current = evm.StateDB.GetState(contract.Address(), common.BigToExtHash(x))
 	)
 	// This checks for 3 scenario's and calculates gas accordingly
 	// 1. From a zero-value address to a non-zero value         (NEW VALUE)
 	// 2. From a non-zero value address to a zero-value address (DELETE)
 	// 3. From a non-zero to a non-zero                         (CHANGE)
-	isOldEmpty := common.EmptyHash(current)
+	isOldEmpty := common.EmptyExtHash(current)
 	isNewEmpty := common.EmptyHash(common.BigToHash(y))
 	if isOldEmpty && !isNewEmpty {
 		// 0 => non 0
@@ -142,32 +142,32 @@ func gasSStoreEIP2200(evm *EVM, contract *Contract, stack *Stack, mem *Memory, m
 	// Gas sentry honoured, do the actual gas calculation based on the stored value
 	var (
 		y, x    = stack.Back(1), stack.Back(0)
-		current = evm.StateDB.GetState(contract.Address(), common.BigToHash(x))
+		current = evm.StateDB.GetState(contract.Address(), common.BigToExtHash(x))
 	)
-	value := common.BigToHash(y)
+	value := common.BigToExtHash(y)
 
 	if current == value { // noop (1)
 		return params.SloadGasEIP2200, nil
 	}
-	original := evm.StateDB.GetCommittedState(contract.Address(), common.BigToHash(x))
+	original := evm.StateDB.GetCommittedState(contract.Address(), common.BigToExtHash(x))
 	if original == current {
-		if original == (common.Hash{}) { // create slot (2.1.1)
+		if original == (common.ExtHash{}) { // create slot (2.1.1)
 			return params.SstoreSetGasEIP2200, nil
 		}
-		if value == (common.Hash{}) { // delete slot (2.1.2b)
+		if value == (common.ExtHash{}) { // delete slot (2.1.2b)
 			evm.StateDB.AddRefund(params.SstoreClearsScheduleRefundEIP2200)
 		}
 		return params.SstoreResetGasEIP2200, nil // write existing slot (2.1.2)
 	}
-	if original != (common.Hash{}) {
-		if current == (common.Hash{}) { // recreate slot (2.2.1.1)
+	if original != (common.ExtHash{}) {
+		if current == (common.ExtHash{}) { // recreate slot (2.2.1.1)
 			evm.StateDB.SubRefund(params.SstoreClearsScheduleRefundEIP2200)
-		} else if value == (common.Hash{}) { // delete slot (2.2.1.2)
+		} else if value == (common.ExtHash{}) { // delete slot (2.2.1.2)
 			evm.StateDB.AddRefund(params.SstoreClearsScheduleRefundEIP2200)
 		}
 	}
 	if original == value {
-		if original == (common.Hash{}) { // reset to original inexistent slot (2.2.2.1)
+		if original == (common.ExtHash{}) { // reset to original inexistent slot (2.2.2.1)
 			evm.StateDB.AddRefund(params.SstoreSetGasEIP2200 - params.SloadGasEIP2200)
 		} else { // reset to original existing slot (2.2.2.2)
 			evm.StateDB.AddRefund(params.SstoreResetGasEIP2200 - params.SloadGasEIP2200)

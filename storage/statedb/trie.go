@@ -30,16 +30,17 @@ import (
 
 var (
 	// emptyRoot is the known root hash of an empty trie.
-	emptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+	emptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421").ToExtHash()
 
 	// emptyState is the known hash of an empty state trie entry.
 	emptyState = crypto.Keccak256Hash(nil)
+	extBytes = common.FromHex("000000000000000f")
 )
 
 // LeafCallback is a callback type invoked when a trie operation reaches a leaf
 // node. It's used by state sync and commit to allow handling external references
 // between account and database tries.
-type LeafCallback func(leaf []byte, parent common.Hash, parentDepth int) error
+type LeafCallback func(leaf []byte, parent common.ExtHash, parentDepth int) error
 
 // Trie is a Merkle Patricia Trie.
 // The zero value is an empty trie with no database.
@@ -49,7 +50,7 @@ type LeafCallback func(leaf []byte, parent common.Hash, parentDepth int) error
 type Trie struct {
 	db           *Database
 	root         node
-	originalRoot common.Hash
+	originalRoot common.ExtHash
 	prefetching  bool
 }
 
@@ -64,7 +65,7 @@ func (t *Trie) newFlag() nodeFlag {
 // trie is initially empty and does not require a database. Otherwise,
 // NewTrie will panic if db is nil and returns a MissingNodeError if root does
 // not exist in the database. Accessing the trie loads nodes from db on demand.
-func NewTrie(root common.Hash, db *Database) (*Trie, error) {
+func NewTrie(root common.ExtHash, db *Database) (*Trie, error) {
 	if db == nil {
 		panic("statedb.NewTrie called without a database")
 	}
@@ -72,8 +73,8 @@ func NewTrie(root common.Hash, db *Database) (*Trie, error) {
 		db:           db,
 		originalRoot: root,
 	}
-	if (root != common.Hash{}) && root != emptyRoot {
-		rootnode, err := trie.resolveHash(root[:], nil)
+	if (root != common.ExtHash{}) && root != emptyRoot {
+		rootnode, err := trie.resolveHash(root.Bytes(), nil)
 		if err != nil {
 			return nil, err
 		}
@@ -82,7 +83,7 @@ func NewTrie(root common.Hash, db *Database) (*Trie, error) {
 	return trie, nil
 }
 
-func NewTrieForPrefetching(root common.Hash, db *Database) (*Trie, error) {
+func NewTrieForPrefetching(root common.ExtHash, db *Database) (*Trie, error) {
 	trie, err := NewTrie(root, db)
 	if err != nil {
 		return nil, err
@@ -113,6 +114,7 @@ func (t *Trie) Get(key []byte) []byte {
 func (t *Trie) TryGet(key []byte) ([]byte, error) {
 	key = keybytesToHex(key)
 	value, newroot, didResolve, err := t.tryGet(t.root, key, 0)
+	//fmt.Printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ get? path=%v, t.root = %v, key=%x value=%x \n", t.db.DiskDB().GetDBConfig().Dir, t.root, key, value)
 	if err == nil && didResolve {
 		t.root = newroot
 	}
@@ -120,6 +122,7 @@ func (t *Trie) TryGet(key []byte) ([]byte, error) {
 }
 
 func (t *Trie) tryGet(origNode node, key []byte, pos int) (value []byte, newnode node, didResolve bool, err error) {
+	//fmt.Printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ get? o.root=%x, t.root = %v, key=%x value=%x \n", t.originalRoot.Bytes(), t.root, key, value)
 	switch n := (origNode).(type) {
 	case nil:
 		return nil, nil, false, nil
@@ -176,7 +179,13 @@ func (t *Trie) Update(key, value []byte) {
 //
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *Trie) TryUpdate(key, value []byte) error {
-	hexKey := keybytesToHex(key)
+	//fmt.Printf("~~~~~~~~ insert key=%x value=%x o.root=%x, t.root = %v\n", key, value, t.originalRoot.Bytes(), t.root)
+	var tmpKey [40]byte
+	copy(tmpKey[:], key)
+	copy(tmpKey[32:], extBytes[:])
+	//fmt.Printf("~~~~~~~~ insert key=%x value=%x o.root=%x\n", tmpKey, value, t.originalRoot.Bytes())
+	//hexKey := keybytesToHex(key)
+	hexKey := keybytesToHex(tmpKey[:])
 	return t.TryUpdateWithHexKey(hexKey, value)
 }
 
@@ -206,6 +215,7 @@ func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error
 		}
 		return true, value, nil
 	}
+	fmt.Printf("~~~~~~~~ insert o.root=%x, t.root = %v, key=%x value=%x \n", t.originalRoot.Bytes(), t.root, key, value)
 	switch n := n.(type) {
 	case *shortNode:
 		matchlen := prefixLen(key, n.Key)
@@ -414,7 +424,7 @@ func (t *Trie) resolve(n node, prefix []byte) (node, error) {
 }
 
 func (t *Trie) resolveHash(n hashNode, prefix []byte) (node, error) {
-	hash := common.BytesToHash(n)
+	hash := common.BytesToExtHash(n)
 	node, fromDB := t.db.node(hash)
 	if t.prefetching && fromDB {
 		memcacheCleanPrefetchMissMeter.Mark(1)
@@ -427,21 +437,21 @@ func (t *Trie) resolveHash(n hashNode, prefix []byte) (node, error) {
 
 // Hash returns the root hash of the trie. It does not write to the
 // database and can be used even if the trie doesn't have one.
-func (t *Trie) Hash() common.Hash {
+func (t *Trie) Hash() common.ExtHash {
 	hash, cached := t.hashRoot(nil, nil)
 	t.root = cached
-	return common.BytesToHash(hash.(hashNode))
+	return common.BytesToExtHash(hash.(hashNode))
 }
 
 // Commit writes all nodes to the trie's memory database, tracking the internal
 // and external (for account tries) references.
-func (t *Trie) Commit(onleaf LeafCallback) (root common.Hash, err error) {
+func (t *Trie) Commit(onleaf LeafCallback) (root common.ExtHash, err error) {
 	if t.db == nil {
 		panic("commit called on trie with nil database")
 	}
 	hash, cached := t.hashRoot(t.db, onleaf)
 	t.root = cached
-	return common.BytesToHash(hash.(hashNode)), nil
+	return common.BytesToExtHash(hash.(hashNode)), nil
 }
 
 func (t *Trie) hashRoot(db *Database, onleaf LeafCallback) (node, node) {

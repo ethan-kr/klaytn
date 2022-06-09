@@ -63,7 +63,7 @@ func (p *statePrefetcher) Prefetch(block *types.Block, stateDB *state.StateDB, c
 			return
 		}
 		// Block precaching permitted to continue, execute the transaction
-		stateDB.Prepare(tx.Hash(), block.Hash(), i)
+		stateDB.Prepare(tx.Hash().ToExtHash(), block.Hash().ToExtHash(), i)
 		if err := precacheTransaction(p.config, p.bc, nil, stateDB, header, tx, cfg); err != nil {
 			return // Ugh, something went horribly wrong, bail out
 		}
@@ -86,7 +86,8 @@ func (p *statePrefetcher) PrefetchTx(block *types.Block, ti int, stateDB *state.
 	}
 
 	// Block precaching permitted to continue, execute the transaction
-	stateDB.Prepare(tx.Hash(), block.Hash(), ti)
+	aa:=tx.Hash().ToExtHash(); bb := block.Hash().ToExtHash()
+	stateDB.Prepare(aa, bb, ti)
 	if err := precacheTransaction(p.config, p.bc, nil, stateDB, header, tx, cfg); err != nil {
 		return // Ugh, something went horribly wrong, bail out
 	}

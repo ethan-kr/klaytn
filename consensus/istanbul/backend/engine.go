@@ -451,7 +451,7 @@ func (sb *backend) Finalize(chain consensus.ChainReader, header *types.Header, s
 		}
 	}
 
-	header.Root = state.IntermediateRoot(true)
+	header.Root = state.IntermediateRoot(true).ToHash()
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, receipts), nil
