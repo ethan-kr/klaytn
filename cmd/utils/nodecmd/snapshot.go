@@ -182,7 +182,7 @@ func traceTrie(ctx *cli.Context) error {
 	}
 
 	db := statedb.NewDatabase(dbm)
-	errHash := db.TrieNodeTraceCheck(root, 1, true)
+	errHash := db.TrieNodeTraceCheck(root, true)
 
 	if len(errHash) == 0 {
 		logger.Info("Verified success")
