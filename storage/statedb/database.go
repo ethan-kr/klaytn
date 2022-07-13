@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"reflect"
 	"sync"
 	"time"
 
@@ -1206,4 +1207,27 @@ func (db *Database) CollectChildrenStats(node common.Hash, depth int, resultCh c
 	for _, child := range childrenNodes {
 		db.CollectChildrenStats(child, depth+1, resultCh)
 	}
+}
+
+func (db *Database) TrieNodeTraceCheck(hash common.Hash, depth int, logFlag bool) (common.Hash, error) {
+
+	childrens, err := db.NodeChildren(hash)
+	if err != nil {
+		if logFlag {
+			fmt.Printf("%d, hash : %x,\ttype : %s\n", depth, hash, err.Error())
+		}
+		return hash, err
+	} else {
+		for _, v := range childrens {
+			node, _ := db.node(v)
+			if logFlag {
+				fmt.Printf("%d, hash : %x,\ttype : %v\n", depth, v, reflect.TypeOf(node))
+			}
+			reHash, err := db.TrieNodeTraceCheck(v, depth+1, logFlag)
+			if err != nil {
+				return reHash, err
+			}
+		}
+	}
+	return hash, err
 }

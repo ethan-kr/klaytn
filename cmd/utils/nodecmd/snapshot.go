@@ -23,7 +23,6 @@ package nodecmd
 import (
 	"errors"
 	"fmt"
-
 	"github.com/klaytn/klaytn/cmd/utils"
 	"github.com/klaytn/klaytn/common"
 	"github.com/klaytn/klaytn/snapshot"
@@ -56,6 +55,30 @@ var SnapshotCommand = cli.Command{
 			},
 			Description: `
 klay snapshot verify-state <state-root>
+will traverse the whole accounts and storages set based on the specified
+snapshot and recalculate the root hash of state for verification.
+In other words, this command does the snapshot to trie conversion.
+`,
+		},
+		{
+			Name:      "trace-trie",
+			Usage:     "trace all trie nodes for verification",
+			ArgsUsage: "<root>",
+			Action:    utils.MigrateFlags(traceTrie),
+			Flags: []cli.Flag{
+				utils.DbTypeFlag,
+				utils.SingleDBFlag,
+				utils.NumStateTrieShardsFlag,
+				utils.DynamoDBTableNameFlag,
+				utils.DynamoDBRegionFlag,
+				utils.DynamoDBIsProvisionedFlag,
+				utils.DynamoDBReadCapacityFlag,
+				utils.DynamoDBWriteCapacityFlag,
+				utils.LevelDBCompressionTypeFlag,
+				utils.DataDirFlag,
+			},
+			Description: `
+klay snapshot trace-trie <state-root>
 will traverse the whole accounts and storages set based on the specified
 snapshot and recalculate the root hash of state for verification.
 In other words, this command does the snapshot to trie conversion.
@@ -135,5 +158,31 @@ func verifyState(ctx *cli.Context) error {
 		return err
 	}
 	logger.Info("Verified the state", "root", root)
+	return nil
+}
+
+func traceTrie(ctx *cli.Context) error {
+	stack := MakeFullNode(ctx)
+	dbm := stack.OpenDatabase(getConfig(ctx))
+	head := dbm.ReadHeadBlockHash()
+	if head == (common.Hash{}) {
+		// Corrupt or empty database, init from scratch
+		return errors.New("empty database")
+	}
+	// Make sure the entire head block is available
+	headBlock := dbm.ReadBlockByHash(head)
+	if headBlock == nil {
+		return fmt.Errorf("head block missing: %v", head.String())
+	}
+
+	root := headBlock.Root()
+	if root == (common.Hash{}) {
+		// Corrupt or empty database, init from scratch
+		return errors.New("empty root")
+	}
+
+	db := statedb.NewDatabase(dbm)
+	db.TrieNodeTraceCheck(root, 1, true)
+
 	return nil
 }
