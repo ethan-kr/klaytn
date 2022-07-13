@@ -1209,25 +1209,54 @@ func (db *Database) CollectChildrenStats(node common.Hash, depth int, resultCh c
 	}
 }
 
-func (db *Database) TrieNodeTraceCheck(hash common.Hash, depth int, logFlag bool) (common.Hash, error) {
+func (db *Database) TrieNodeTraceCheck(hash common.Hash, logFlag bool) (reHash []common.Hash) {
+	quitCh := make(chan struct{})
+	hashCh := make(chan common.Hash, 16)
+	childrens, _ := db.NodeChildren(hash)
+
+	thCnt := 0
+	for _, v := range childrens {
+		go db.trieNodeTraceCheck(v, 1, logFlag, quitCh, hashCh)
+		thCnt++
+	}
+
+	for thCnt > 0 {
+		select {
+		case <-quitCh:
+			thCnt--
+		case hash := <-hashCh:
+			reHash = append(reHash, hash)
+		}
+	}
+	return reHash
+}
+
+func (db *Database) trieNodeTraceCheck(hash common.Hash, depth int, logFlag bool, quitCh chan struct{}, hashCh chan common.Hash) {
 
 	childrens, err := db.NodeChildren(hash)
 	if err != nil {
 		if logFlag {
-			fmt.Printf("%d, hash : %x,\ttype : %s\n", depth, hash, err.Error())
+			fmt.Printf("%d, hash : %x,\terr : %s\n", depth, hash, err.Error())
 		}
-		return hash, err
+		hashCh <- hash
+		return
 	} else {
 		for _, v := range childrens {
 			node, _ := db.node(v)
 			if logFlag {
 				fmt.Printf("%d, hash : %x,\ttype : %v\n", depth, v, reflect.TypeOf(node))
 			}
-			reHash, err := db.TrieNodeTraceCheck(v, depth+1, logFlag)
+			db.trieNodeTraceCheck(v, depth+1, logFlag, quitCh, hashCh)
 			if err != nil {
-				return reHash, err
+				if logFlag {
+					fmt.Printf("%d, hash : %x,\terr : %s\n", depth, hash, err.Error())
+				}
+				hashCh <- v
 			}
 		}
 	}
-	return hash, err
+	if depth == 1 {
+		close(quitCh)
+	}
+	return
 }
