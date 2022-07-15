@@ -1129,7 +1129,7 @@ func (sdb *StateDB) TrieNodeTraceCheck(hash common.Hash) (AccountHash, StorageHa
 		case shash := <-shashCh:
 			StorageHash = append(StorageHash, shash)
 		case <-time.After(time.Second * 5):
-			logger.Info("Trie Tracer", "AccNode", procAccountCnt, "AccErr", errAccountCnt, "StrgNode", procStorageCnt, "StrgErr", errStorageCnt, "CodeAcc", procCodeCnt, "CodeErr", errCodeCnt, "Empty", procEmptyACnt)
+			logger.Info("Trie Tracer", "AccNode", procAccountCnt, "AccErr", errAccountCnt, "StrgNode", procStorageCnt, "StrgErr", errStorageCnt, "CodeAcc", procCodeCnt, "CodeErr", errCodeCnt, "EmptyAcc", procEmptyACnt, "EmptyCode", procEmptyCCnt)
 		}
 	}
 	return AccountHash, StorageHash
