@@ -1139,17 +1139,17 @@ func (sdb *StateDB) trieNodeTraceCheck(hash common.Hash, depth int, quitCh chan 
 		if depth < 50 {
 			if hash == emptyRoot {
 				procEmptyACnt++
-			} else {
+			} else if err != statedb.ErrZeroHashNode {
 				errAccountCnt++
+				ahashCh <- hash
 			}
-			ahashCh <- hash
 		} else {
 			if hash == emptyRoot {
 				procEmptyACnt++
-			} else {
+			} else if err != statedb.ErrZeroHashNode {
 				errStorageCnt++
+				shashCh <- hash
 			}
-			shashCh <- hash
 		}
 		return
 	} else {
@@ -1166,6 +1166,7 @@ func (sdb *StateDB) trieNodeTraceCheck(hash common.Hash, depth int, quitCh chan 
 			if pacc != nil {
 				sroot := pacc.GetStorageRoot()
 				sdb.trieNodeTraceCheck(sroot, depth+51, quitCh, ahashCh, shashCh)
+
 				chash := pacc.GetCodeHash()
 				if sdb.Database().TrieDB().DiskDB().HasCode(common.BytesToHash(chash)) {
 					procCodeCnt++
