@@ -56,6 +56,15 @@ var (
 
 	// TODO-Klaytn EnabledExpensive and DBConfig.EnableDBPerfMetrics will be merged
 	EnabledExpensive = false
+
+	procAccountCnt = uint64(0)
+	procStorageCnt = uint64(0)
+	procCodeCnt    = uint64(0)
+	procEmptyACnt  = uint64(0)
+	errAccountCnt  = uint64(0)
+	errStorageCnt  = uint64(0)
+	errCodeCnt     = uint64(0)
+	procEmptySCnt  = uint64(0)
 )
 
 // StateDBs within the Klaytn protocol are used to cache stateObjects from Merkle Patricia Trie
@@ -1091,4 +1100,87 @@ func (s *StateDB) GetContractStorageRoot(contractAddr common.Address) (common.Ha
 		return common.Hash{}, errNotContractAddress
 	}
 	return contract.GetStorageRoot(), nil
+}
+
+func (sdb *StateDB) TrieNodeTraceCheck(hash common.Hash) (AccountHash, StorageHash []common.Hash) {
+	procAccountCnt = 0
+	procStorageCnt = 0
+	errAccountCnt = 0
+	errStorageCnt = 0
+
+	quitCh := make(chan struct{})
+	ahashCh := make(chan common.Hash, 16)
+	shashCh := make(chan common.Hash, 16)
+	childrens, _ := sdb.db.TrieDB().NodeChildren(hash)
+
+	thCnt := 0
+	for _, v := range childrens {
+		go sdb.trieNodeTraceCheck(v, 1, quitCh, ahashCh, shashCh)
+		thCnt++
+	}
+
+	for thCnt > 0 {
+		select {
+		case <-quitCh:
+			thCnt--
+		case ahash := <-ahashCh:
+			AccountHash = append(AccountHash, ahash)
+		case shash := <-shashCh:
+			StorageHash = append(StorageHash, shash)
+		case <-time.After(time.Second * 5):
+			logger.Info("Trie Tracer", "AccNode", procAccountCnt, "AccErr", errAccountCnt, "StrgNode", procStorageCnt, "StrgErr", errStorageCnt)
+		}
+	}
+	return AccountHash, StorageHash
+}
+
+func (sdb *StateDB) trieNodeTraceCheck(hash common.Hash, depth int, quitCh chan struct{}, ahashCh, shashCh chan common.Hash) {
+	childrens, valueBytes, err := sdb.db.TrieDB().NodeTracer(hash)
+	if err != nil {
+		if depth < 50 {
+			if hash == emptyRoot {
+				procEmptyACnt++
+			} else {
+				errAccountCnt++
+			}
+			ahashCh <- hash
+		} else {
+			if hash == emptyRoot {
+				procEmptySCnt++
+			} else {
+				errStorageCnt++
+			}
+			shashCh <- hash
+		}
+		return
+	} else {
+		for _, v := range childrens {
+			sdb.trieNodeTraceCheck(v, depth+1, quitCh, ahashCh, shashCh)
+			procAccountCnt++
+		}
+		for _, v := range valueBytes {
+			seirlaizer := account.NewAccountSerializer()
+			rlp.DecodeBytes(v, &seirlaizer)
+
+			acc := seirlaizer.GetAccount()
+			pacc := account.GetProgramAccount(acc)
+			if pacc != nil {
+				sroot := pacc.GetStorageRoot()
+				sdb.trieNodeTraceCheck(sroot, depth+51, quitCh, ahashCh, shashCh)
+				chash := pacc.GetCodeHash()
+				if sdb.Database().TrieDB().DiskDB().HasCode(common.BytesToHash(chash)) {
+					procCodeCnt++
+				} else {
+					errCodeCnt++
+				}
+			} else {
+				errStorageCnt++
+			}
+			procStorageCnt++
+		}
+	}
+	if depth == 1 {
+		close(quitCh)
+	}
+	return
 }

@@ -422,6 +422,45 @@ func (db *Database) NodeChildren(hash common.Hash) ([]common.Hash, error) {
 	return childrenHash, nil
 }
 
+func (db *Database) NodeTracer(hash common.Hash) (childrenHash []common.Hash, valueBytes [][]byte, err error) {
+	var children []node
+
+	if (hash == common.Hash{}) {
+		return childrenHash, valueBytes, ErrZeroHashNode
+	}
+
+	n, _ := db.node(hash)
+	if n == nil {
+		return childrenHash, valueBytes, ErrReadFailHashNode
+	}
+
+	switch n := (n).(type) {
+	case *shortNode:
+		children = []node{n.Val}
+	case *fullNode:
+		for i := 0; i < 17; i++ {
+			if n.Children[i] != nil {
+				children = append(children, n.Children[i])
+			}
+		}
+	}
+
+	for _, child := range children {
+		n, ok := child.(hashNode)
+		if ok {
+			hash := common.BytesToHash(n)
+			childrenHash = append(childrenHash, hash)
+		} else if fmt.Sprintf("%v", reflect.TypeOf(child)) == "statedb.valueNode" {
+			tmpBuf, ok := child.(valueNode)
+			if ok && tmpBuf[0] == 0x02 {
+				valueBytes = append(valueBytes, tmpBuf)
+			}
+		}
+	}
+
+	return childrenHash, valueBytes, nil
+}
+
 // insert inserts a collapsed trie node into the memory database.
 // The blob size must be specified to allow proper size tracking.
 // All nodes inserted by this function will be reference tracked
@@ -1125,6 +1164,7 @@ func (db *Database) UpdateMetricNodes() {
 var (
 	errDisabledTrieNodeCache         = errors.New("trie node cache is disabled, nothing to save to file")
 	errSavingTrieNodeCacheInProgress = errors.New("saving trie node cache has been triggered already")
+	ErrReadFailHashNode              = errors.New("db read failed hash node")
 )
 
 func (db *Database) CanSaveTrieNodeCacheToFile() error {
@@ -1207,56 +1247,4 @@ func (db *Database) CollectChildrenStats(node common.Hash, depth int, resultCh c
 	for _, child := range childrenNodes {
 		db.CollectChildrenStats(child, depth+1, resultCh)
 	}
-}
-
-func (db *Database) TrieNodeTraceCheck(hash common.Hash, logFlag bool) (reHash []common.Hash) {
-	quitCh := make(chan struct{})
-	hashCh := make(chan common.Hash, 16)
-	childrens, _ := db.NodeChildren(hash)
-
-	thCnt := 0
-	for _, v := range childrens {
-		go db.trieNodeTraceCheck(v, 1, logFlag, quitCh, hashCh)
-		thCnt++
-	}
-
-	for thCnt > 0 {
-		select {
-		case <-quitCh:
-			thCnt--
-		case hash := <-hashCh:
-			reHash = append(reHash, hash)
-		}
-	}
-	return reHash
-}
-
-func (db *Database) trieNodeTraceCheck(hash common.Hash, depth int, logFlag bool, quitCh chan struct{}, hashCh chan common.Hash) {
-
-	childrens, err := db.NodeChildren(hash)
-	if err != nil {
-		if logFlag {
-			fmt.Printf("%d, hash : %x,\terr : %s\n", depth, hash, err.Error())
-		}
-		hashCh <- hash
-		return
-	} else {
-		for _, v := range childrens {
-			node, _ := db.node(v)
-			if logFlag {
-				fmt.Printf("%d, hash : %x,\ttype : %v\n", depth, v, reflect.TypeOf(node))
-			}
-			db.trieNodeTraceCheck(v, depth+1, logFlag, quitCh, hashCh)
-			if err != nil {
-				if logFlag {
-					fmt.Printf("%d, hash : %x,\terr : %s\n", depth, hash, err.Error())
-				}
-				hashCh <- v
-			}
-		}
-	}
-	if depth == 1 {
-		close(quitCh)
-	}
-	return
 }

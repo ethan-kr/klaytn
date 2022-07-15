@@ -23,6 +23,7 @@ package nodecmd
 import (
 	"errors"
 	"fmt"
+	"github.com/klaytn/klaytn/blockchain/state"
 	"github.com/klaytn/klaytn/cmd/utils"
 	"github.com/klaytn/klaytn/common"
 	"github.com/klaytn/klaytn/snapshot"
@@ -181,14 +182,21 @@ func traceTrie(ctx *cli.Context) error {
 		return errors.New("empty root")
 	}
 
-	db := statedb.NewDatabase(dbm)
-	errHash := db.TrieNodeTraceCheck(root, true)
+	sdb, err := state.New(root, state.NewDatabase(dbm), nil)
+	if err != nil {
+		logger.Error("Failed to open newDB trie", "err", err)
+		return err
+	}
+	errAccHash, errStrgHash := sdb.TrieNodeTraceCheck(root)
 
-	if len(errHash) == 0 {
+	if len(errAccHash) == 0 && len(errStrgHash) == 0 {
 		logger.Info("Verified success")
 	} else {
-		for _, v := range errHash {
-			logger.Info("Failed Hash", v)
+		for _, v := range errAccHash {
+			logger.Info("Failed Account Hash", v)
+		}
+		for _, v := range errStrgHash {
+			logger.Info("Failed Storage Hash", v)
 		}
 	}
 	return nil
