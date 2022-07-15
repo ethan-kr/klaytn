@@ -61,9 +61,11 @@ var (
 	procStorageCnt = uint64(0)
 	procCodeCnt    = uint64(0)
 	procEmptyACnt  = uint64(0)
+	procEmptyCCnt  = uint64(0)
 	errAccountCnt  = uint64(0)
 	errStorageCnt  = uint64(0)
 	errCodeCnt     = uint64(0)
+	codeExcept     = common.HexToHash("0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 )
 
 // StateDBs within the Klaytn protocol are used to cache stateObjects from Merkle Patricia Trie
@@ -1170,7 +1172,10 @@ func (sdb *StateDB) trieNodeTraceCheck(hash common.Hash, depth int, quitCh chan 
 				chash := pacc.GetCodeHash()
 				if sdb.Database().TrieDB().DiskDB().HasCode(common.BytesToHash(chash)) {
 					procCodeCnt++
+				} else if common.BytesToHash(chash) == codeExcept {
+					procEmptyCCnt++
 				} else {
+					fmt.Printf("code err hash %x,\tchash %x\n", hash, chash)
 					errCodeCnt++
 				}
 			} else {
