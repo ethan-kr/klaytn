@@ -58,7 +58,7 @@ type (
 	istanbulCompatibleBlock  *big.Int
 	LondonCompatibleBlock    *big.Int
 	EthTxTypeCompatibleBlock *big.Int
-	kip71CompatibleBlock     *big.Int
+	magmaCompatibleBlock     *big.Int
 )
 
 type (
@@ -131,8 +131,8 @@ func newBlockChain(n int, items ...interface{}) (*blockchain.BlockChain, *backen
 			genesis.Config.LondonCompatibleBlock = v
 		case EthTxTypeCompatibleBlock:
 			genesis.Config.EthTxTypeCompatibleBlock = v
-		case kip71CompatibleBlock:
-			genesis.Config.KIP71CompatibleBlock = v
+		case magmaCompatibleBlock:
+			genesis.Config.MagmaCompatibleBlock = v
 		case proposerPolicy:
 			genesis.Config.Istanbul.ProposerPolicy = uint64(v)
 		case epoch:
@@ -331,7 +331,7 @@ func TestVerifyHeader(t *testing.T) {
 	configItems = append(configItems, istanbulCompatibleBlock(new(big.Int).SetUint64(0)))
 	configItems = append(configItems, LondonCompatibleBlock(new(big.Int).SetUint64(0)))
 	configItems = append(configItems, EthTxTypeCompatibleBlock(new(big.Int).SetUint64(0)))
-	configItems = append(configItems, kip71CompatibleBlock(new(big.Int).SetUint64(0)))
+	configItems = append(configItems, magmaCompatibleBlock(new(big.Int).SetUint64(0)))
 	chain, engine := newBlockChain(1, configItems...)
 	defer engine.Stop()
 

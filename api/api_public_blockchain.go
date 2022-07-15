@@ -302,7 +302,7 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 		return nil, 0, 0, 0, err
 	}
 
-	// header.BaseFee != nil means kip71 hardforked
+	// header.BaseFee != nil means magma hardforked
 	var baseFee *big.Int
 	if header.BaseFee != nil {
 		baseFee = header.BaseFee
@@ -611,24 +611,29 @@ func getFrom(tx *types.Transaction) common.Address {
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
 // representation, with the given location metadata set (if available).
-func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index uint64) map[string]interface{} {
-	from := getFrom(tx)
-
+func newRPCTransaction(b *types.Block, tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index uint64) map[string]interface{} {
 	output := tx.MakeRPCOutput()
-
 	output["senderTxHash"] = tx.SenderTxHashAll()
 	output["blockHash"] = blockHash
 	output["blockNumber"] = (*hexutil.Big)(new(big.Int).SetUint64(blockNumber))
-	output["from"] = from
+	output["from"] = getFrom(tx)
 	output["hash"] = tx.Hash()
 	output["transactionIndex"] = hexutil.Uint(index)
+	if tx.Type() == types.TxTypeEthereumDynamicFee {
+		if b != nil {
+			output["gasPrice"] = (*hexutil.Big)(tx.EffectiveGasPrice(b.Header()))
+		} else {
+			// transaction is not processed yet
+			output["gasPrice"] = (*hexutil.Big)(tx.EffectiveGasPrice(nil))
+		}
+	}
 
 	return output
 }
 
 // newRPCPendingTransaction returns a pending transaction that will serialize to the RPC representation
 func newRPCPendingTransaction(tx *types.Transaction) map[string]interface{} {
-	return newRPCTransaction(tx, common.Hash{}, 0, 0)
+	return newRPCTransaction(nil, tx, common.Hash{}, 0, 0)
 }
 
 // newRPCTransactionFromBlockIndex returns a transaction that will serialize to the RPC representation.
@@ -637,7 +642,7 @@ func newRPCTransactionFromBlockIndex(b *types.Block, index uint64) map[string]in
 	if index >= uint64(len(txs)) {
 		return nil
 	}
-	return newRPCTransaction(txs[index], b.Hash(), b.NumberU64(), index)
+	return newRPCTransaction(b, txs[index], b.Hash(), b.NumberU64(), index)
 }
 
 // newRPCRawTransactionFromBlockIndex returns the bytes of a transaction given a block and a transaction index.
@@ -687,13 +692,11 @@ func (args *CallArgs) ToMessage(globalGasCap uint64, baseFee *big.Int, intrinsic
 
 	gasPrice := new(big.Int)
 	if baseFee.Cmp(new(big.Int).SetUint64(params.ZeroBaseFee)) == 0 {
-		// If there's no basefee, then it must be a non-1559 execution
+		// If baseFee is zero, then it must be a magma hardfork
 		if args.GasPrice != nil {
 			gasPrice = args.GasPrice.ToInt()
 		} else if args.MaxFeePerGas != nil {
 			gasPrice = args.MaxFeePerGas.ToInt()
-		} else {
-			return nil, errors.New("Neither GasPrice nor MaxFeePerGas is specified")
 		}
 	} else {
 		if args.GasPrice != nil {
@@ -703,7 +706,7 @@ func (args *CallArgs) ToMessage(globalGasCap uint64, baseFee *big.Int, intrinsic
 			gasPrice = args.MaxFeePerGas.ToInt()
 		} else {
 			// User specified neither GasPrice nor MaxFeePerGas, use baseFee
-			gasPrice = baseFee.Mul(baseFee, common.Big2)
+			gasPrice = new(big.Int).Mul(baseFee, common.Big2)
 		}
 	}
 	value := new(big.Int)

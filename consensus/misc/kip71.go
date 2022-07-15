@@ -10,7 +10,7 @@ import (
 	"github.com/klaytn/klaytn/params"
 )
 
-func VerifyKIP71Header(config *params.ChainConfig, parentHeader, header *types.Header) error {
+func VerifyMagmaHeader(config *params.ChainConfig, parentHeader, header *types.Header) error {
 	if header.BaseFee == nil {
 		return fmt.Errorf("header is missing baseFee")
 	}
@@ -28,8 +28,8 @@ func NextBlockBaseFee(parentHeader *types.Header, config *params.ChainConfig) *b
 	lowerBoundBaseFee := new(big.Int).SetUint64(config.Governance.KIP71.LowerBoundBaseFee)
 	upperBoundBaseFee := new(big.Int).SetUint64(config.Governance.KIP71.UpperBoundBaseFee)
 
-	// If the parent is the kip71 disabled block or genesis, then return the lowerBoundBaseFee (default 25ston)
-	if !config.IsKIP71ForkEnabled(parentHeader.Number) || parentHeader.Number.Cmp(new(big.Int).SetUint64(0)) == 0 {
+	// If the parent is the magma disabled block or genesis, then return the lowerBoundBaseFee (default 25ston)
+	if !config.IsMagmaForkEnabled(parentHeader.Number) || parentHeader.Number.Cmp(new(big.Int).SetUint64(0)) == 0 {
 		return lowerBoundBaseFee
 	}
 

@@ -44,6 +44,7 @@ var (
 		IstanbulCompatibleBlock:  big.NewInt(86816005),
 		LondonCompatibleBlock:    big.NewInt(86816005),
 		EthTxTypeCompatibleBlock: big.NewInt(86816005),
+		MagmaCompatibleBlock:     big.NewInt(999999999), // TODO-Klaytn-Magma: Set HF blocknumber correctly
 		DeriveShaImpl:            2,
 		Governance: &GovernanceConfig{
 			GoverningNode:  common.HexToAddress("0x52d41ca72af615a1ac3301b0a93efa222ecc7541"),
@@ -72,6 +73,7 @@ var (
 		IstanbulCompatibleBlock:  big.NewInt(75373312),
 		LondonCompatibleBlock:    big.NewInt(80295291),
 		EthTxTypeCompatibleBlock: big.NewInt(86513895),
+		MagmaCompatibleBlock:     big.NewInt(999999999), // TODO-Klaytn-Magma: Set HF blocknumber correctly
 		DeriveShaImpl:            2,
 		Governance: &GovernanceConfig{
 			GoverningNode:  common.HexToAddress("0x99fb17d324fa0e07f23b49d09028ac0919414db6"),
@@ -137,17 +139,12 @@ var (
 	}
 )
 
-var (
-	// VMLogTarget sets the output target of vmlog.
-	// The values below can be OR'ed.
-	//  - 0x0: no output (default)
-	//  - 0x1: file (DATADIR/logs/vm.log)
-	//  - 0x2: stdout (like logger.DEBUG)
-	VMLogTarget = 0x0
-
-	// TODO-klaytn temporal number for test
-	KIP71CompatibleBlockNum = big.NewInt(95000000)
-)
+// VMLogTarget sets the output target of vmlog.
+// The values below can be OR'ed.
+//  - 0x0: no output (default)
+//  - 0x1: file (DATADIR/logs/vm.log)
+//  - 0x2: stdout (like logger.DEBUG)
+var VMLogTarget = 0x0
 
 const (
 	VMLogToFile   = 0x1
@@ -174,7 +171,7 @@ type ChainConfig struct {
 	IstanbulCompatibleBlock  *big.Int `json:"istanbulCompatibleBlock,omitempty"`  // IstanbulCompatibleBlock switch block (nil = no fork, 0 = already on istanbul)
 	LondonCompatibleBlock    *big.Int `json:"londonCompatibleBlock,omitempty"`    // LondonCompatibleBlock switch block (nil = no fork, 0 = already on london)
 	EthTxTypeCompatibleBlock *big.Int `json:"ethTxTypeCompatibleBlock,omitempty"` // EthTxTypeCompatibleBlock switch block (nil = no fork, 0 = already on ethTxType)
-	KIP71CompatibleBlock     *big.Int `json:"kip71CompatibleBlock,omitempty"`     // KIP71Compatible switch block (nil = no fork, 0 already on KIP71)
+	MagmaCompatibleBlock     *big.Int `json:"magmaCompatibleBlock,omitempty"`     // MagmaCompatible switch block (nil = no fork, 0 already on Magma)
 
 	// Various consensus engines
 	Gxhash   *GxhashConfig   `json:"gxhash,omitempty"` // (deprecated) not supported engine
@@ -191,7 +188,7 @@ type GovernanceConfig struct {
 	GoverningNode  common.Address `json:"governingNode"`
 	GovernanceMode string         `json:"governanceMode"`
 	Reward         *RewardConfig  `json:"reward,omitempty"`
-	KIP71          *KIP71Config   `json:"kip71,omitempty"`
+	KIP71          *KIP71Config   `json:"magma,omitempty"`
 }
 
 func (g *GovernanceConfig) DeferredTxFee() bool {
@@ -209,7 +206,7 @@ type RewardConfig struct {
 	MinimumStake           *big.Int `json:"minimumStake"`           // Minimum amount of peb to join CCO
 }
 
-// TODO-klaytn kip71 governance parameters
+// Magma governance parameters
 type KIP71Config struct {
 	LowerBoundBaseFee         uint64 `json:"lowerboundbasefee"`         // Minimum base fee for dynamic gas price
 	UpperBoundBaseFee         uint64 `json:"upperboundbasefee"`         // Maximum base fee for dynamic gas price
@@ -264,24 +261,24 @@ func (c *ChainConfig) String() string {
 		engine = "unknown"
 	}
 	if c.Istanbul != nil {
-		return fmt.Sprintf("{ChainID: %v IstanbulCompatibleBlock: %v LondonCompatibleBlock: %v EthTxTypeCompatibleBlock: %v KIP71CompatibleBlock: %v SubGroupSize: %d UnitPrice: %d DeriveShaImpl: %d Engine: %v}",
+		return fmt.Sprintf("{ChainID: %v IstanbulCompatibleBlock: %v LondonCompatibleBlock: %v EthTxTypeCompatibleBlock: %v MagmaCompatibleBlock: %v SubGroupSize: %d UnitPrice: %d DeriveShaImpl: %d Engine: %v}",
 			c.ChainID,
 			c.IstanbulCompatibleBlock,
 			c.LondonCompatibleBlock,
 			c.EthTxTypeCompatibleBlock,
-			c.KIP71CompatibleBlock,
+			c.MagmaCompatibleBlock,
 			c.Istanbul.SubGroupSize,
 			c.UnitPrice,
 			c.DeriveShaImpl,
 			engine,
 		)
 	} else {
-		return fmt.Sprintf("{ChainID: %v IstanbulCompatibleBlock: %v LondonCompatibleBlock: %v EthTxTypeCompatibleBlock: %v KIP71CompatibleBlock: %v UnitPrice: %d DeriveShaImpl: %d Engine: %v }",
+		return fmt.Sprintf("{ChainID: %v IstanbulCompatibleBlock: %v LondonCompatibleBlock: %v EthTxTypeCompatibleBlock: %v MagmaCompatibleBlock: %v UnitPrice: %d DeriveShaImpl: %d Engine: %v }",
 			c.ChainID,
 			c.IstanbulCompatibleBlock,
 			c.LondonCompatibleBlock,
 			c.EthTxTypeCompatibleBlock,
-			c.KIP71CompatibleBlock,
+			c.MagmaCompatibleBlock,
 			c.UnitPrice,
 			c.DeriveShaImpl,
 			engine,
@@ -311,9 +308,9 @@ func (c *ChainConfig) IsEthTxTypeForkEnabled(num *big.Int) bool {
 	return isForked(c.EthTxTypeCompatibleBlock, num)
 }
 
-// IsKIP71ForkedEnabled returns whether num is either equal to the kip71 block or greater.
-func (c *ChainConfig) IsKIP71ForkEnabled(num *big.Int) bool {
-	return isForked(c.KIP71CompatibleBlock, num)
+// IsMagmaForkedEnabled returns whether num is either equal to the magma block or greater.
+func (c *ChainConfig) IsMagmaForkEnabled(num *big.Int) bool {
+	return isForked(c.MagmaCompatibleBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -347,7 +344,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "istanbulBlock", block: c.IstanbulCompatibleBlock},
 		{name: "londonBlock", block: c.LondonCompatibleBlock},
 		{name: "ethTxTypeBlock", block: c.EthTxTypeCompatibleBlock},
-		{name: "kip71Block", block: c.KIP71CompatibleBlock},
+		{name: "magmaBlock", block: c.MagmaCompatibleBlock},
 	} {
 		if lastFork.name != "" {
 			// Next one must be higher number
@@ -380,8 +377,8 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.EthTxTypeCompatibleBlock, newcfg.EthTxTypeCompatibleBlock, head) {
 		return newCompatError("EthTxType Block", c.EthTxTypeCompatibleBlock, newcfg.EthTxTypeCompatibleBlock)
 	}
-	if isForkIncompatible(c.KIP71CompatibleBlock, newcfg.KIP71CompatibleBlock, head) {
-		return newCompatError("KIP71 Block", c.KIP71CompatibleBlock, newcfg.KIP71CompatibleBlock)
+	if isForkIncompatible(c.MagmaCompatibleBlock, newcfg.MagmaCompatibleBlock, head) {
+		return newCompatError("Magma Block", c.MagmaCompatibleBlock, newcfg.MagmaCompatibleBlock)
 	}
 	return nil
 }
@@ -485,7 +482,7 @@ type Rules struct {
 	ChainID    *big.Int
 	IsIstanbul bool
 	IsLondon   bool
-	IsKIP71    bool
+	IsMagma    bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -498,7 +495,7 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		ChainID:    new(big.Int).Set(chainID),
 		IsIstanbul: c.IsIstanbulForkEnabled(num),
 		IsLondon:   c.IsLondonForkEnabled(num),
-		IsKIP71:    c.IsKIP71ForkEnabled(num),
+		IsMagma:    c.IsMagmaForkEnabled(num),
 	}
 }
 
@@ -507,7 +504,7 @@ func GetDefaultGovernanceConfig() *GovernanceConfig {
 		GovernanceMode: DefaultGovernanceMode,
 		GoverningNode:  common.HexToAddress(DefaultGoverningNode),
 		Reward:         GetDefaultRewardConfig(),
-		KIP71:          GetDefaultKip71Config(),
+		KIP71:          GetDefaultKIP71Config(),
 	}
 	return gov
 }
@@ -532,7 +529,7 @@ func GetDefaultRewardConfig() *RewardConfig {
 	}
 }
 
-func GetDefaultKip71Config() *KIP71Config {
+func GetDefaultKIP71Config() *KIP71Config {
 	return &KIP71Config{
 		LowerBoundBaseFee:         DefaultLowerBoundBaseFee,
 		UpperBoundBaseFee:         DefaultUpperBoundBaseFee,

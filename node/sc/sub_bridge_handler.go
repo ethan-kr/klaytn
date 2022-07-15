@@ -184,7 +184,7 @@ func (sbh *SubBridgeHandler) setRemoteGasPrice(gasPrice uint64) {
 func (sbh *SubBridgeHandler) setRemoteChainValues(pcInfo parentChainInfo) {
 	headerNum := sbh.subbridge.blockchain.CurrentHeader().Number
 	sbh.setRemoteGasPrice(pcInfo.GasPrice)
-	if sbh.subbridge.blockchain.Config().IsKIP71ForkEnabled(headerNum) {
+	if sbh.subbridge.blockchain.Config().IsMagmaForkEnabled(headerNum) {
 		// Set parent chain's gasprice with upperboundbasefee
 		sbh.remoteGasPrice = pcInfo.KIP71Config.UpperBoundBaseFee
 		sbh.subbridge.bridgeAccounts.SetParentKIP71Config(pcInfo.KIP71Config)
@@ -390,9 +390,9 @@ func (sbh *SubBridgeHandler) handleParentChainInvalidTxResponseMsg(msg p2p.Msg) 
 			logger.Error("A bridge tx was not executed", "err", invalidTx.ErrStr,
 				"txHash", invalidTx.TxHash.String(),
 				"txGasPrice", tx.GasPrice().Uint64())
-			if sbh.subbridge.blockchain.Config().IsKIP71ForkEnabled(headerNum) &&
+			if sbh.subbridge.blockchain.Config().IsMagmaForkEnabled(headerNum) &&
 				invalidTx.ErrStr == blockchain.ErrGasPriceBelowBaseFee.Error() {
-				logger.Info("Request gasPrice and KIP71 values to parent chain")
+				logger.Info("Request gasPrice and Magma values to parent chain")
 				sbh.SyncNonceAndGasPrice()
 
 				logger.Error("Bridge tx is removed which has lower gasPrice than UpperBoundBaseFee")

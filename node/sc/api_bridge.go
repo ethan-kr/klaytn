@@ -701,7 +701,7 @@ func (sb *SubBridgeAPI) GetParentGasPrice() uint64 {
 	return sb.subBridge.bridgeAccounts.GetParentGasPrice()
 }
 
-// GetParentKIP71Config returns the recently synced parent chain's KIP-71 config values
+// GetParentKIP71Config returns the recently synced parent chain's Magma config values
 func (sb *SubBridgeAPI) GetParentKIP71Config() params.KIP71Config {
 	return sb.subBridge.bridgeAccounts.GetParentKIP71Config()
 }

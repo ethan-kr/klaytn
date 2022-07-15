@@ -54,7 +54,7 @@ var (
 	// eip1559Config is a chain config with EIP-1559 enabled at block 0.
 	eip1559Config *params.ChainConfig
 
-	// kip71Config is a chain config with KIP-71 enabled at block 0.
+	// kip71Config is a chain config with Magma enabled at block 0.
 	kip71Config *params.ChainConfig
 )
 
@@ -69,11 +69,11 @@ func init() {
 	fork.SetHardForkBlockNumberConfig(eip1559Config)
 
 	kip71Config = params.TestChainConfig.Copy()
-	kip71Config.KIP71CompatibleBlock = common.Big0
+	kip71Config.MagmaCompatibleBlock = common.Big0
 	kip71Config.IstanbulCompatibleBlock = common.Big0
 	kip71Config.LondonCompatibleBlock = common.Big0
 	kip71Config.EthTxTypeCompatibleBlock = common.Big0
-	kip71Config.Governance = &params.GovernanceConfig{KIP71: params.GetDefaultKip71Config()}
+	kip71Config.Governance = &params.GovernanceConfig{KIP71: params.GetDefaultKIP71Config()}
 }
 
 type testBlockChain struct {
@@ -380,7 +380,7 @@ func TestInvalidTransactions(t *testing.T) {
 	}
 }
 
-func TestInvalidTransactionsKip71(t *testing.T) {
+func TestInvalidTransactionsMagma(t *testing.T) {
 	t.Parallel()
 
 	pool, key := setupTxPoolWithConfig(kip71Config)
@@ -412,7 +412,7 @@ func TestInvalidTransactionsKip71(t *testing.T) {
 	pool.SetBaseFee(big.NewInt(1000))
 
 	// NOTE-Klaytn if the gasPrice in tx is lower than txPool's
-	// It should return ErrGasPriceBelowBaseFee error after kip71 hardfork
+	// It should return ErrGasPriceBelowBaseFee error after magma hardfork
 	if err := pool.AddRemote(tx); err != ErrGasPriceBelowBaseFee {
 		t.Error("expected", ErrGasPriceBelowBaseFee, "got", err)
 	}
@@ -2088,7 +2088,7 @@ func TestDynamicFeeTransactionAcceptedEip1559(t *testing.T) {
 }
 
 // TestDynamicFeeTransactionAccepted tests that pool accept the transaction which has gasFeeCap bigger than or equal to baseFee.
-func TestDynamicFeeTransactionAcceptedKip71(t *testing.T) {
+func TestDynamicFeeTransactionAcceptedMagma(t *testing.T) {
 	t.Parallel()
 	baseFee := big.NewInt(30)
 
@@ -2141,7 +2141,7 @@ func TestTransactionAcceptedEip1559(t *testing.T) {
 }
 
 // TestTransactionAccepted tests that pool accepted transaction which has gasPrice bigger than or equal to baseFee.
-func TestTransactionAcceptedKip71(t *testing.T) {
+func TestTransactionAcceptedMagma(t *testing.T) {
 	t.Parallel()
 	baseFee := big.NewInt(30)
 
@@ -2164,7 +2164,7 @@ func TestTransactionAcceptedKip71(t *testing.T) {
 	}
 }
 
-func TestCancelTransactionAcceptedKip71(t *testing.T) {
+func TestCancelTransactionAcceptedMagma(t *testing.T) {
 	t.Parallel()
 	baseFee := big.NewInt(30)
 

@@ -13,9 +13,9 @@ import (
 func getTestConfig(forkedBlockNum *big.Int) *params.ChainConfig {
 	testConfig := params.CypressChainConfig
 	testConfig.UnitPrice = uint64(25000000000)
-	testConfig.KIP71CompatibleBlock = forkedBlockNum
+	testConfig.MagmaCompatibleBlock = forkedBlockNum
 	testConfig.Governance = &params.GovernanceConfig{
-		KIP71: params.GetDefaultKip71Config(),
+		KIP71: params.GetDefaultKIP71Config(),
 	}
 	return testConfig
 }
