@@ -64,7 +64,6 @@ var (
 	errAccountCnt  = uint64(0)
 	errStorageCnt  = uint64(0)
 	errCodeCnt     = uint64(0)
-	procEmptySCnt  = uint64(0)
 )
 
 // StateDBs within the Klaytn protocol are used to cache stateObjects from Merkle Patricia Trie
@@ -1128,7 +1127,7 @@ func (sdb *StateDB) TrieNodeTraceCheck(hash common.Hash) (AccountHash, StorageHa
 		case shash := <-shashCh:
 			StorageHash = append(StorageHash, shash)
 		case <-time.After(time.Second * 5):
-			logger.Info("Trie Tracer", "AccNode", procAccountCnt, "AccErr", errAccountCnt, "StrgNode", procStorageCnt, "StrgErr", errStorageCnt)
+			logger.Info("Trie Tracer", "AccNode", procAccountCnt, "AccErr", errAccountCnt, "StrgNode", procStorageCnt, "StrgErr", errStorageCnt, "CodeAcc", procCodeCnt, "CodeErr", errCodeCnt, "Empty", procEmptyACnt)
 		}
 	}
 	return AccountHash, StorageHash
@@ -1146,7 +1145,7 @@ func (sdb *StateDB) trieNodeTraceCheck(hash common.Hash, depth int, quitCh chan 
 			ahashCh <- hash
 		} else {
 			if hash == emptyRoot {
-				procEmptySCnt++
+				procEmptyACnt++
 			} else {
 				errStorageCnt++
 			}
