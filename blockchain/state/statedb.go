@@ -62,6 +62,7 @@ var (
 	procCodeCnt    = uint64(0)
 	procEmptyACnt  = uint64(0)
 	procEmptyCCnt  = uint64(0)
+	procUnknownCnt = uint64(0)
 	errAccountCnt  = uint64(0)
 	errStorageCnt  = uint64(0)
 	errCodeCnt     = uint64(0)
@@ -1129,14 +1130,20 @@ func (sdb *StateDB) TrieNodeTraceCheck(hash common.Hash) (AccountHash, StorageHa
 		case shash := <-shashCh:
 			StorageHash = append(StorageHash, shash)
 		case <-time.After(time.Second * 5):
-			logger.Info("Trie Tracer", "AccNode", procAccountCnt, "AccErr", errAccountCnt, "StrgNode", procStorageCnt, "StrgErr", errStorageCnt, "CodeAcc", procCodeCnt, "CodeErr", errCodeCnt, "Empty", procEmptyACnt)
+			logger.Info("Trie Tracer", "AccNode", procAccountCnt, "AccErr", errAccountCnt, "StrgNode", procStorageCnt, "StrgErr", errStorageCnt, "Unknown", procUnknownCnt, "CodeAcc", procCodeCnt, "CodeErr", errCodeCnt, "EmptyAcc", procEmptyACnt, "EmptyCode", procEmptyCCnt)
 		}
 	}
 	return AccountHash, StorageHash
 }
 
 func (sdb *StateDB) trieNodeTraceCheck(hash common.Hash, depth int, quitCh chan struct{}, ahashCh, shashCh chan common.Hash) {
-	childrens, valueBytes, err := sdb.db.TrieDB().NodeTracer(hash)
+	if depth < 50 {
+		procAccountCnt++
+	} else {
+		procStorageCnt++
+	}
+	childrens, valueBytes, unknownCnt, err := sdb.db.TrieDB().NodeTracer(hash)
+	procUnknownCnt += uint64(unknownCnt)
 	if err != nil {
 		if depth < 50 {
 			if hash == emptyRoot {
@@ -1157,7 +1164,7 @@ func (sdb *StateDB) trieNodeTraceCheck(hash common.Hash, depth int, quitCh chan 
 	} else {
 		for _, v := range childrens {
 			sdb.trieNodeTraceCheck(v, depth+1, quitCh, ahashCh, shashCh)
-			procAccountCnt++
+			//procAccountCnt++
 		}
 		for _, v := range valueBytes {
 			seirlaizer := account.NewAccountSerializer()
@@ -1181,7 +1188,7 @@ func (sdb *StateDB) trieNodeTraceCheck(hash common.Hash, depth int, quitCh chan 
 			} else {
 				errStorageCnt++
 			}
-			procStorageCnt++
+			//procStorageCnt++
 		}
 	}
 	if depth == 1 {

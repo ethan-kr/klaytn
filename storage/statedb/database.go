@@ -422,16 +422,16 @@ func (db *Database) NodeChildren(hash common.Hash) ([]common.Hash, error) {
 	return childrenHash, nil
 }
 
-func (db *Database) NodeTracer(hash common.Hash) (childrenHash []common.Hash, valueBytes [][]byte, err error) {
+func (db *Database) NodeTracer(hash common.Hash) (childrenHash []common.Hash, valueBytes [][]byte, unknownCnt int, err error) {
 	var children []node
 
 	if (hash == common.Hash{}) {
-		return childrenHash, valueBytes, ErrZeroHashNode
+		return childrenHash, valueBytes, unknownCnt, ErrZeroHashNode
 	}
 
 	n, _ := db.node(hash)
 	if n == nil {
-		return childrenHash, valueBytes, ErrReadFailHashNode
+		return childrenHash, valueBytes, unknownCnt, ErrReadFailHashNode
 	}
 
 	switch n := (n).(type) {
@@ -443,6 +443,8 @@ func (db *Database) NodeTracer(hash common.Hash) (childrenHash []common.Hash, va
 				children = append(children, n.Children[i])
 			}
 		}
+	default:
+		fmt.Printf("what n %x\n", n)
 	}
 
 	for _, child := range children {
@@ -455,10 +457,12 @@ func (db *Database) NodeTracer(hash common.Hash) (childrenHash []common.Hash, va
 			if ok && tmpBuf[0] == 0x02 {
 				valueBytes = append(valueBytes, tmpBuf)
 			}
+		} else {
+			unknownCnt++
 		}
 	}
 
-	return childrenHash, valueBytes, nil
+	return childrenHash, valueBytes, unknownCnt, nil
 }
 
 // insert inserts a collapsed trie node into the memory database.
