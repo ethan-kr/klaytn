@@ -444,7 +444,7 @@ func (db *Database) NodeTracer(hash common.Hash) (childrenHash []common.Hash, va
 			}
 		}
 	default:
-		fmt.Printf("what n %x\n", n)
+		logger.Error("NodeTrace : unknown node type", "node", n)
 	}
 
 	for _, child := range children {
