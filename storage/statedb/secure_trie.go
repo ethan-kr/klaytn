@@ -21,7 +21,7 @@
 package statedb
 
 import (
-	"fmt"
+	//"fmt"
 	"github.com/klaytn/klaytn/common"
 )
 
@@ -89,7 +89,14 @@ func (t *SecureTrie) Get(key []byte) []byte {
 // The value bytes must not be modified by the caller.
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *SecureTrie) TryGet(key []byte) ([]byte, error) {
-	return t.trie.TryGet(t.hashKey(key))
+	//return t.trie.TryGet(t.hashKey(key))
+        //extBytes := common.GetRootExtHashBytes(key)
+	hk := t.hashKey(key)
+	//hk = append(hk, extBytes...)
+	//return t.trie.TryGet(hk)
+	value, err := t.trie.TryGet(hk)
+	//fmt.Printf("~~~~~ tryGet key=%x, hashkey=%x, value=%x, err=%v\n", key, hk, value, err)
+	return value, err
 }
 
 // Update associates key with value in the trie. Subsequent calls to
@@ -113,12 +120,15 @@ func (t *SecureTrie) Update(key, value []byte) {
 //
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *SecureTrie) TryUpdate(key, value []byte) error {
+        //extBytes := common.GetRootExtHashBytes(key)
 	hk := t.hashKey(key)
+	//hk = append(hk, extBytes...)
+	//fmt.Printf("~~~~~ tryUpd key=%x, hashkey=%x, value=%x\n", key, hk, value)
 	err := t.trie.TryUpdate(hk, value)
 	if err != nil {
 		return err
 	}
-	t.getSecKeyCache()[string(hk)] = common.CopyBytes(key)
+	t.getSecKeyCache()[string(hk)] = common.CopyBytes(key)	//Ethan.. hk키가 일반 hash.. 체크필요
 	return nil
 }
 
@@ -143,7 +153,9 @@ func (t *SecureTrie) Delete(key []byte) {
 // TryDelete removes any existing value for key from the trie.
 // If a node was not found in the database, a MissingNodeError is returned.
 func (t *SecureTrie) TryDelete(key []byte) error {
+        //extBytes := common.GetRootExtHashBytes(key)
 	hk := t.hashKey(key)
+	//hk = append(hk, extBytes...)
 	delete(t.getSecKeyCache(), string(hk))
 	return t.trie.TryDelete(hk)
 }
@@ -163,7 +175,7 @@ func (t *SecureTrie) GetKey(shaKey []byte) []byte {
 //
 // Committing flushes nodes from memory. Subsequent Get calls will load nodes
 // from the database.
-func (t *SecureTrie) Commit(onleaf LeafCallback) (root common.ExtHash, err error) {
+func (t *SecureTrie) Commit(onleaf LeafCallback, extRootFlag bool) (root common.ExtHash, err error) {
 	// Write all the pre-images to the actual disk database
 	if len(t.getSecKeyCache()) > 0 {
 		t.trie.db.lock.Lock()
@@ -175,11 +187,15 @@ func (t *SecureTrie) Commit(onleaf LeafCallback) (root common.ExtHash, err error
 		t.secKeyCache = make(map[string][]byte)
 	}
 	// Commit the trie to its intermediate node database
-	return t.trie.Commit(onleaf)
+	return t.trie.Commit(onleaf, extRootFlag)
 }
 
 func (t *SecureTrie) Hash() common.ExtHash {
 	return t.trie.Hash()
+}
+
+func (t *SecureTrie) RootHash() common.ExtHash {
+	return t.trie.RootHash()
 }
 
 func (t *SecureTrie) Copy() *SecureTrie {
@@ -199,15 +215,12 @@ func (t *SecureTrie) NodeIterator(start []byte) NodeIterator {
 func (t *SecureTrie) hashKey(key []byte) []byte {
 	h := newHasher(nil)
 	h.sha.Reset()
-	//Ethan
-	if len(key) == 40 && key[32] == 0 && key[34] == 0 && key[36] == 0 && key[38] == 0 {
-		h.sha.Write(key[:32])
-	} else {
-		h.sha.Write(key)
-	}
+	//Ethan 220630
+	//h.sha.Write(key)
+	h.sha.Write(common.ExtPaddingFilter(key))
 	buf := h.sha.Sum(t.hashKeyBuf[:0])
 	returnHasherToPool(h)
-	fmt.Printf("~~~~~ sercure key = %x, len = %d, hashkey = %x, hashlen = %d\n", key, len(key), buf, len(buf))
+	//fmt.Printf("~~~~~ secure key = %x(..%d), hashKey = %x(..%d)\n", key, len(key), buf, len(buf))
 	return buf
 }
 

@@ -48,7 +48,7 @@ func newEmptyLegacyAccount() *LegacyAccount {
 func newLegacyAccount() *LegacyAccount {
 	logger.CritWithStack("Legacy account is deprecated.")
 	return &LegacyAccount{
-		0, new(big.Int), common.ExtHash{}, emptyCodeHash,
+		0, new(big.Int), common.InitExtHash(), emptyCodeHash,
 	}
 }
 

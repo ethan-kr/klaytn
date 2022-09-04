@@ -733,8 +733,13 @@ func handleBlockHeadersRequestMsg(pm *ProtocolManager, p Peer, msg p2p.Msg) erro
 func handleBlockHeadersMsg(pm *ProtocolManager, p Peer, msg p2p.Msg) error {
 	// A batch of headers arrived to one of our previous requests
 	var headers []*types.Header
-	if err := msg.Decode(&headers); err != nil {
+	var headersV19 []*types.HeaderV19
+	if err := msg.Decode(&headersV19); err != nil {
 		return errResp(ErrDecode, "msg %v: %v", msg, err)
+	}
+	for _, v := range headersV19 {
+		h := types.CopyHeaderV19(v)
+		headers = append(headers, h)
 	}
 	if err := pm.downloader.DeliverHeaders(p.GetID(), headers); err != nil {
 		logger.Debug("Failed to deliver headers", "err", err)

@@ -62,7 +62,7 @@ type smartContractAccountSerializableJSON struct {
 func newSmartContractAccount() *SmartContractAccount {
 	return &SmartContractAccount{
 		newAccountCommon(),
-		common.ExtHash{},
+		common.InitExtHash(),
 		emptyCodeHash,
 		params.CodeInfo(0),
 	}
@@ -71,7 +71,7 @@ func newSmartContractAccount() *SmartContractAccount {
 func newSmartContractAccountWithMap(values map[AccountValueKeyType]interface{}) *SmartContractAccount {
 	sca := &SmartContractAccount{
 		newAccountCommonWithMap(values),
-		common.ExtHash{},
+		common.InitExtHash(),
 		emptyCodeHash,
 		params.CodeInfo(0),
 	}
@@ -120,7 +120,7 @@ func (sca *SmartContractAccount) EncodeRLP(w io.Writer) error {
 func (sca *SmartContractAccount) DecodeRLP(s *rlp.Stream) error {
 	serialized := &smartContractAccountSerializable{
 		newAccountCommonSerializable(),
-		common.ExtHash{},
+		common.InitExtHash(),
 		[]byte{},
 		params.CodeInfo(0),
 	}

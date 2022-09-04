@@ -122,7 +122,9 @@ func newObject(db *StateDB, address common.Address, data account.Account) *state
 	return &stateObject{
 		db:            db,
 		address:       address,
-		addrHash:      crypto.Keccak256Hash(address[:]).ToExtHash(),
+		//Ethan 20220630
+		//addrHash:      crypto.Keccak256Hash(address[:]).ToExtHash(),
+		addrHash:      crypto.Keccak256Hash(address[:]).ToRootExtHash(),
 		account:       data,
 		originStorage: make(Storage),
 		dirtyStorage:  make(Storage),
@@ -170,12 +172,12 @@ func (c *stateObject) getStorageTrie(db Database) Trie {
 			var err error
 			c.storageTrie, err = c.openStorageTrie(acc.GetStorageRoot(), db)
 			if err != nil {
-				c.storageTrie, _ = c.openStorageTrie(common.ExtHash{}, db)
+				c.storageTrie, _ = c.openStorageTrie(common.InitExtHash(), db)
 				c.setError(fmt.Errorf("can't create storage trie: %v", err))
 			}
 		} else {
 			// not a contract account, just returns the empty trie.
-			c.storageTrie, _ = c.openStorageTrie(common.ExtHash{}, db)
+			c.storageTrie, _ = c.openStorageTrie(common.InitExtHash(), db)
 		}
 	}
 	return c.storageTrie
@@ -185,7 +187,7 @@ func (c *stateObject) getStorageTrie(db Database) Trie {
 func (self *stateObject) GetState(db Database, key common.ExtHash) common.ExtHash {
 	// If we have a dirty value for this state entry, return it
 	value, dirty := self.dirtyStorage[key]
-	fmt.Printf("----- GET key=%x, value=%x\n", key.Bytes(), value)
+	//fmt.Printf("----- GET key=%x, value=%x\n", key.Bytes(), value)
 	if dirty {
 		return value
 	}
@@ -228,7 +230,7 @@ func (self *stateObject) GetCommittedState(db Database, key common.ExtHash) comm
 		//      have been handles via pendingStorage above.
 		//   2) we don't have new values, and can deliver empty response back
 		if _, destructed := self.db.snapDestructs[self.addrHash]; destructed {
-			return common.ExtHash{}
+			return common.InitExtHash()
 		}
 		enc, err = self.db.snap.Storage(self.addrHash, crypto.Keccak256Hash(key.Bytes()).ToExtHash())
 	}
@@ -246,7 +248,7 @@ func (self *stateObject) GetCommittedState(db Database, key common.ExtHash) comm
 		// Load from DB in case it is missing.
 		if enc, err = self.getStorageTrie(db).TryGet(key.Bytes()); err != nil {
 			self.setError(err)
-			return common.ExtHash{}
+			return common.InitExtHash()
 		}
 	}
 	if len(enc) > 0 {
@@ -264,7 +266,7 @@ func (self *stateObject) GetCommittedState(db Database, key common.ExtHash) comm
 func (self *stateObject) SetState(db Database, key, value common.ExtHash) {
 	// If the new value is the same as old, don't set
 	prev := self.GetState(db, key)
-	fmt.Printf("----- SET key=%x, value=%x\n", key.Bytes(), value.Bytes())
+	//fmt.Printf("----- SET key=%x, value=%x\n", key.Bytes(), value.Bytes())
 	if prev == value {
 		return
 	}
@@ -353,14 +355,15 @@ func (self *stateObject) updateStorageTrie(db Database) Trie {
 		self.originStorage[key] = value
 
 		var v []byte
-		if (value == common.ExtHash{}) {
+		//if (value == common.InitExtHash()) {
+		if (value.ToHash() == common.Hash{}) {
 			self.setError(tr.TryDelete(key.Bytes()))
 		} else {
 			// Encoding []byte cannot fail, ok to ignore the error.
 			// Ethan 맞나??????
 			//v, _ = rlp.EncodeToBytes(bytes.TrimLeft(value.Bytes(), "\x00"))
 			v, _ = rlp.EncodeToBytes(bytes.TrimLeft(value.ToHash().Bytes(), "\x00"))
-			fmt.Printf("********** key = %x, value = %x, enVal = %x\n", key.Bytes(), value.Bytes(), v)
+			//fmt.Printf("********** key = %x, value = %x, enVal = %x\n", key.Bytes(), value.Bytes(), v)
 			self.setError(tr.TryUpdate(key.Bytes(), v))
 		}
 		// If state snapshotting is active, cache the data til commit
@@ -386,6 +389,7 @@ func (self *stateObject) updateStorageRoot(db Database) {
 			defer func(start time.Time) { self.db.StorageHashes += time.Since(start) }(time.Now())
 		}
 		acc.SetStorageRoot(self.storageTrie.Hash())
+		//acc.SetStorageRoot(self.storageTrie.RootHash())
 	}
 }
 
@@ -399,6 +403,7 @@ func (self *stateObject) setStorageRoot(updateStorageRoot bool, objectsToUpdate 
 				defer func(start time.Time) { self.db.StorageHashes += time.Since(start) }(time.Now())
 			}
 			acc.SetStorageRoot(self.storageTrie.Hash())
+			//acc.SetStorageRoot(self.storageTrie.RootHash())
 			return
 		}
 		// If updateStorageRoot == false, it just marks the object and updates its storage root later.
@@ -418,7 +423,7 @@ func (self *stateObject) CommitStorageTrie(db Database) error {
 		defer func(start time.Time) { self.db.StorageCommits += time.Since(start) }(time.Now())
 	}
 	if acc := account.GetProgramAccount(self.account); acc != nil {
-		root, err := self.storageTrie.Commit(nil)
+		root, err := self.storageTrie.Commit(nil, false)
 		if err != nil {
 			return err
 		}

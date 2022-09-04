@@ -148,7 +148,8 @@ func (e seekError) Error() string {
 }
 
 func newNodeIterator(trie *Trie, start []byte) NodeIterator {
-	if trie.Hash() == emptyState.ToExtHash() {
+	//if trie.Hash() == emptyState.ToExtHash() {
+	if trie.Hash().ToHash() == emptyState {
 		return new(nodeIterator)
 	}
 	it := &nodeIterator{trie: trie}
@@ -158,14 +159,14 @@ func newNodeIterator(trie *Trie, start []byte) NodeIterator {
 
 func (it *nodeIterator) Hash() common.ExtHash {
 	if len(it.stack) == 0 {
-		return common.ExtHash{}
+		return common.InitExtHash()
 	}
 	return it.stack[len(it.stack)-1].hash
 }
 
 func (it *nodeIterator) Parent() common.ExtHash {
 	if len(it.stack) == 0 {
-		return common.ExtHash{}
+		return common.InitExtHash()
 	}
 	return it.stack[len(it.stack)-1].parent
 }
@@ -203,7 +204,9 @@ func (it *nodeIterator) LeafProof() [][]byte {
 			for i, item := range it.stack[:len(it.stack)-1] {
 				// Gather nodes that end up as hash nodes (or the root)
 				node, _ := hasher.hashChildren(item.node, nil)
-				hashed, _ := hasher.store(node, nil, false)
+				//Ethan
+				//hashed, _ := hasher.store(node, nil, false, false)
+				hashed, _, _ := hasher.store(node, nil, false, false)
 				if _, ok := hashed.(hashNode); ok || i == 0 {
 					enc, _ := rlp.EncodeToBytes(node)
 					proofs = append(proofs, enc)
@@ -280,7 +283,8 @@ func (it *nodeIterator) peek(descend bool) (*nodeIteratorState, *int, []byte, er
 		// Initialize the iterator if we've just started.
 		root := it.trie.Hash()
 		state := &nodeIteratorState{node: it.trie.root, index: -1}
-		if root != emptyRoot.ToHash().ToExtHash() {
+		//if root != emptyRoot.ToHash().ToExtHash() {
+		if root.ToHash() != emptyRoot.ToHash() {
 			state.hash = root
 		}
 		err := state.resolve(it, nil)
@@ -295,7 +299,8 @@ func (it *nodeIterator) peek(descend bool) (*nodeIteratorState, *int, []byte, er
 	for len(it.stack) > 0 {
 		parent := it.stack[len(it.stack)-1]
 		ancestor := parent.hash
-		if (ancestor == common.ExtHash{}) {
+		//if (ancestor == common.InitExtHash()) {
+		if (ancestor.ToHash() == common.Hash{}) {
 			ancestor = parent.parent
 		}
 		state, path, ok := it.nextChild(parent, ancestor)
@@ -484,7 +489,8 @@ func (it *differenceIterator) Next(bool) bool {
 			return true
 		case 0:
 			// a and b are identical; skip this whole subtree if the nodes have hashes
-			hasHash := it.a.Hash() == common.ExtHash{}
+			//hasHash := it.a.Hash() == common.InitExtHash()
+			hasHash := it.a.Hash().ToHash() == common.Hash{}
 			if !it.b.Next(hasHash) {
 				return false
 			}
@@ -594,7 +600,8 @@ func (it *unionIterator) Next(descend bool) bool {
 	for len(*it.items) > 0 && ((!descend && bytes.HasPrefix((*it.items)[0].Path(), least.Path())) || compareNodes(least, (*it.items)[0]) == 0) {
 		skipped := heap.Pop(it.items).(NodeIterator)
 		// Skip the whole subtree if the nodes have hashes; otherwise just skip this node
-		if skipped.Next(skipped.Hash() == common.ExtHash{}) {
+		//if skipped.Next(skipped.Hash() == common.InitExtHash()) {
+		if skipped.Next(skipped.Hash().ToHash() == common.Hash{}) {
 			it.count += 1
 			// If there are more elements, push the iterator back on the heap
 			heap.Push(it.items, skipped)

@@ -672,7 +672,7 @@ func (t *Tree) Journal(root common.ExtHash) (common.ExtHash, error) {
 	// Retrieve the head snapshot to journal from var snap snapshot
 	snap := t.Snapshot(root)
 	if snap == nil {
-		return common.ExtHash{}, fmt.Errorf("snapshot [%#x] missing", root)
+		return common.InitExtHash(), fmt.Errorf("snapshot [%#x] missing", root)
 	}
 	// Run the journaling
 	t.lock.Lock()
@@ -681,21 +681,22 @@ func (t *Tree) Journal(root common.ExtHash) (common.ExtHash, error) {
 	// Firstly write out the metadata of journal
 	journal := new(bytes.Buffer)
 	if err := rlp.Encode(journal, journalVersion); err != nil {
-		return common.ExtHash{}, err
+		return common.InitExtHash(), err
 	}
 	diskroot := t.diskRoot()
-	if diskroot == (common.ExtHash{}) {
-		return common.ExtHash{}, errors.New("invalid disk root")
+	//if diskroot == (common.InitExtHash()) {
+	if diskroot.ToHash() == (common.Hash{}) {
+		return common.InitExtHash(), errors.New("invalid disk root")
 	}
 	// Secondly write out the disk layer root, ensure the
 	// diff journal is continuous with disk.
 	if err := rlp.Encode(journal, diskroot); err != nil {
-		return common.ExtHash{}, err
+		return common.InitExtHash(), err
 	}
 	// Finally write out the journal of each layer in reverse order.
 	base, err := snap.(snapshot).Journal(journal)
 	if err != nil {
-		return common.ExtHash{}, err
+		return common.InitExtHash(), err
 	}
 	// Store the journal into the database and return
 	t.diskdb.WriteSnapshotJournal(journal.Bytes())
@@ -776,22 +777,22 @@ func (t *Tree) StorageIterator(root common.ExtHash, account common.ExtHash, seek
 // Verify iterates the whole state(all the accounts as well as the corresponding storages)
 // with the specific root and compares the re-computed hash with the original one.
 func (t *Tree) Verify(root common.ExtHash) error {
-	acctIt, err := t.AccountIterator(root, common.ExtHash{})
+	acctIt, err := t.AccountIterator(root, common.InitExtHash())
 	if err != nil {
 		return err
 	}
 	defer acctIt.Release()
 
-	got, err := generateTrieRoot(acctIt, common.ExtHash{}, trieGenerate, func(accountHash, codeHash common.ExtHash, stat *generateStats) (common.ExtHash, error) {
-		storageIt, err := t.StorageIterator(root, accountHash, common.ExtHash{})
+	got, err := generateTrieRoot(acctIt, common.InitExtHash(), trieGenerate, func(accountHash, codeHash common.ExtHash, stat *generateStats) (common.ExtHash, error) {
+		storageIt, err := t.StorageIterator(root, accountHash, common.InitExtHash())
 		if err != nil {
-			return common.ExtHash{}, err
+			return common.InitExtHash(), err
 		}
 		defer storageIt.Release()
 
 		hash, err := generateTrieRoot(storageIt, accountHash, trieGenerate, nil, stat, false)
 		if err != nil {
-			return common.ExtHash{}, err
+			return common.InitExtHash(), err
 		}
 		return hash, nil
 	}, newGenerateStats(), true)
@@ -831,7 +832,7 @@ func (t *Tree) disklayer() *diskLayer {
 func (t *Tree) diskRoot() common.ExtHash {
 	disklayer := t.disklayer()
 	if disklayer == nil {
-		return common.ExtHash{}
+		return common.InitExtHash()
 	}
 	return disklayer.Root()
 }

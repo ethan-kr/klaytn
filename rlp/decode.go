@@ -474,6 +474,7 @@ func makeStructDecoder(typ reflect.Type) (decoder, error) {
 			} else {
 				err = f.info.decoder(s, val.Field(f.index))
 				if err == EOL {
+					break
 					return &decodeError{msg: "too few elements", typ: typ}
 				} else if err != nil {
 					return addErrorContext(err, "."+typ.Field(f.index).Name)

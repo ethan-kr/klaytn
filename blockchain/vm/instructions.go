@@ -620,17 +620,22 @@ func opMstore8(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *
 
 func opSload(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
 	loc := stack.Peek()
-	val := evm.StateDB.GetState(contract.Address(), common.BigToExtHash(loc))
+	//val := evm.StateDB.GetState(contract.Address(), common.BigToExtHash(loc))
+	//val := evm.StateDB.GetState(contract.Address(), common.BigToExtHash(loc).ToHash().ToRootExtHash())
+	val := evm.StateDB.GetState(contract.Address(), common.BigToRootExtHash(loc))
 	//loc.SetBytes(val.Bytes())
-	//아래 코드를 해줘야 opcode를 잘 동작함
+	//Ethan 아래 코드를 해줘야 opcode를 잘 동작함
 	loc.SetBytes(val.Bytes()[:32])
+	//fmt.Printf("~~~~~ evm val before = %x, fixed = %x\n", val.Bytes(), val.Bytes()[:32])
+	//fmt.Printf("~~~~~ evm ssload addr = %x, loc = %x, before = %x, fixed = %x\n", contract.Address(), loc, val.Bytes(), val.Bytes()[:32])
 	return nil, nil
 }
 
 func opSstore(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
-	loc := common.BigToExtHash(stack.pop())
+	loc := common.BigToRootExtHash(stack.pop())
 	val := stack.pop()
-	evm.StateDB.SetState(contract.Address(), loc, common.BigToExtHash(val))
+	evm.StateDB.SetState(contract.Address(), loc, common.BigToRootExtHash(val))
+	//fmt.Printf("~~~~~ evm sstore addr = %x, loc = %s, val = %x extval = %v\n", contract.Address(), loc, val.Bytes(), common.BigToRootExtHash(val))
 
 	evm.interpreter.intPool.put(val)
 	return nil, nil

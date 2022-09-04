@@ -277,6 +277,7 @@ func (t *TxInternalDataValueTransfer) SenderTxHash() common.Hash {
 	h := common.Hash{}
 
 	hw.Sum(h[:0])
+	fmt.Printf("~~~~~ hash51= %v, data = %x\n", h, hw)
 
 	return h
 }

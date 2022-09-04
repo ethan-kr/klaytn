@@ -138,7 +138,8 @@ func loadSnapshot(diskdb database.DBManager, triedb *statedb.Database, cache int
 	// Retrieve the block number and hash of the snapshot, failing if no snapshot
 	// is present in the database (or crashed mid-update).
 	baseRoot := diskdb.ReadSnapshotRoot()
-	if baseRoot == (common.ExtHash{}) {
+	//if baseRoot == (common.InitExtHash()) {
+	if baseRoot.ToHash() == (common.Hash{}) {
 		return nil, false, errors.New("missing or corrupted snapshot")
 	}
 	base := &diskLayer{
@@ -267,7 +268,7 @@ func (dl *diskLayer) Journal(buffer *bytes.Buffer) (common.ExtHash, error) {
 	defer dl.lock.RUnlock()
 
 	if dl.stale {
-		return common.ExtHash{}, ErrSnapshotStale
+		return common.InitExtHash(), ErrSnapshotStale
 	}
 	// Ensure the generator stats is written even if none was ran this cycle
 	journalProgress(dl.diskdb.GetSnapshotDB(), dl.genMarker, stats)
@@ -282,32 +283,32 @@ func (dl *diffLayer) Journal(buffer *bytes.Buffer) (common.ExtHash, error) {
 	// Journal the parent first
 	base, err := dl.parent.Journal(buffer)
 	if err != nil {
-		return common.ExtHash{}, err
+		return common.InitExtHash(), err
 	}
 	// Ensure the layer didn't get stale
 	dl.lock.RLock()
 	defer dl.lock.RUnlock()
 
 	if dl.Stale() {
-		return common.ExtHash{}, ErrSnapshotStale
+		return common.InitExtHash(), ErrSnapshotStale
 	}
 	// Everything below was journalled, persist this layer too
 	if err := rlp.Encode(buffer, dl.root); err != nil {
-		return common.ExtHash{}, err
+		return common.InitExtHash(), err
 	}
 	destructs := make([]journalDestruct, 0, len(dl.destructSet))
 	for hash := range dl.destructSet {
 		destructs = append(destructs, journalDestruct{Hash: hash})
 	}
 	if err := rlp.Encode(buffer, destructs); err != nil {
-		return common.ExtHash{}, err
+		return common.InitExtHash(), err
 	}
 	accounts := make([]journalAccount, 0, len(dl.accountData))
 	for hash, blob := range dl.accountData {
 		accounts = append(accounts, journalAccount{Hash: hash, Blob: blob})
 	}
 	if err := rlp.Encode(buffer, accounts); err != nil {
-		return common.ExtHash{}, err
+		return common.InitExtHash(), err
 	}
 	storage := make([]journalStorage, 0, len(dl.storageData))
 	for hash, slots := range dl.storageData {
@@ -320,7 +321,7 @@ func (dl *diffLayer) Journal(buffer *bytes.Buffer) (common.ExtHash, error) {
 		storage = append(storage, journalStorage{Hash: hash, Keys: keys, Vals: vals})
 	}
 	if err := rlp.Encode(buffer, storage); err != nil {
-		return common.ExtHash{}, err
+		return common.InitExtHash(), err
 	}
 	logger.Debug("Journalled diff layer", "root", dl.root, "parent", dl.parent.Root())
 	return base, nil

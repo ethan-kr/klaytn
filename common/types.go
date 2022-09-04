@@ -29,9 +29,12 @@ import (
 	"math/rand"
 	"reflect"
 	"encoding/binary"
+//	"io"
+	"sync"
 
 	"github.com/klaytn/klaytn/common/hexutil"
 	"github.com/klaytn/klaytn/crypto/sha3"
+//	"github.com/klaytn/klaytn/rlp"
 )
 
 const (
@@ -39,11 +42,17 @@ const (
 	ExtHashLength   = 40
 	AddressLength   = 20
 	SignatureLength = 65
+	StaticNums	= false
 )
 
 var (
 	hashT    = reflect.TypeOf(Hash{})
 	addressT = reflect.TypeOf(Address{})
+
+	randBlockNum    uint32
+	randIdx         uint32 = 0xffff
+	extMap		map[Hash]uint32
+	hashMu		sync.Mutex
 )
 
 var lastPrecompiledContractAddressHex = hexutil.MustDecode("0x00000000000000000000000000000000000003FF")
@@ -58,10 +67,120 @@ type Hash [HashLength]byte
 
 type ExtHash struct {
 	Hash		Hash
-	BlockNum	uint32
-	Idx		uint32
+	BlockNum	uint32	//`default:"2520008232"` 
+	Idx		uint32	//`default:"251658240"`
 }
 
+func InitExtHash() (extH ExtHash) {
+	extH.Hash = Hash{}
+	extH.BlockNum = 0
+	extH.Idx = 0xffff
+	return extH
+}
+/*
+func (eh ExtHash) EncodeRLP(w io.Writer) error {
+	h := eh.ToHash()
+	
+	return rlp.Encode(w, h)
+}
+
+func (eh *ExtHash) DecodeRLP(s *rlp.Stream) error {
+	var h Hash
+	
+        if err := s.Decode(&h); err != nil {
+                return err
+        }
+	eh.Hash = h
+	//eh.BlockNum, eh.Idx = GetRandPaddings(h.Bytes())
+	eh.BlockNum, eh.Idx =  0, 0xffff
+	fmt.Printf("~~~~~ DEC key = %x\n", *eh)
+	return nil
+}
+*/
+
+func InitBlocksIndex() {
+	extMap = make(map[Hash]uint32)
+	randBlockNum = 0
+	randIdx = 0xffff
+}
+
+func SetBlockNum(blockNum uint32) {
+	if randBlockNum == blockNum {
+		return
+	}
+	if StaticNums {
+		extMap = make(map[Hash]uint32)
+		randBlockNum = 0
+	} else {
+		randBlockNum = blockNum
+	}
+	randIdx = 0xffff
+	fmt.Printf("setBlockNum = %d\n", randBlockNum)
+}
+
+func GetRandPaddings(hash []byte) (block uint32, idx uint32) {
+	//var ok bool
+	tmpHash := BytesToHash(hash)
+	if tmpHash == (Hash{}) {
+		return randBlockNum, 0xffff
+	}
+	hashMu.Lock()
+		//if idx, ok = extMap[tmpHash]; !ok {
+			if !StaticNums {
+				if randIdx < 0xffff {
+					randIdx = 0xffff
+				} else {
+					randIdx+=0x10000
+				}
+			}
+			idx = randIdx
+		//	extMap[tmpHash] = randIdx
+		//}
+	hashMu.Unlock()
+
+	//fmt.Printf("~~~~~ idxlog hash = %x, blocNum = %d, idx = %d\n", tmpHash, randBlockNum, idx)
+	/*testHash := fmt.Sprintf("%x",tmpHash)
+	//if testHash == "56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421" || testHash == "21609bae207c446dffdf7f06152a661afcfff1c1dd6d8e06d1c0f5357de71221" {
+	if testHash == "0000000000000000000000000000000000000000000000000000000000000000" {
+		fmt.Printf("~~~~~ here\n")
+	}*/
+	return randBlockNum, idx
+}
+
+/*func GetRootExtHashBytes(hash []byte) []byte {
+	var tmpBuf [4]byte
+
+	reBuf := make([]byte, 8)
+
+	binary.LittleEndian.PutUint32(tmpBuf[:], uint32(0))
+	copy(reBuf[:], tmpBuf[:])
+	binary.LittleEndian.PutUint32(tmpBuf[0:], uint32(0xffff))
+	copy(reBuf[4:], tmpBuf[:])
+	return reBuf[:]
+}*/
+
+/*
+func GetExtHashBytes(hash []byte) []byte {
+	var tmpBuf [4]byte
+
+	reBuf := make([]byte, 8)
+
+	blockNum, idx := GetRandPaddings(hash)
+	binary.LittleEndian.PutUint32(tmpBuf[:], uint32(blockNum))
+	copy(reBuf[:], tmpBuf[:])
+	//too much?
+	if idx < 0xffff {
+		binary.LittleEndian.PutUint32(tmpBuf[0:], uint32(0xffff))
+	} else {
+		binary.LittleEndian.PutUint32(tmpBuf[0:], uint32(idx))
+	}
+	copy(reBuf[4:], tmpBuf[:])
+	return reBuf[:]
+}
+*/
+
+
+/*
 func (h ExtHash) Bytes() []byte { 
 	var hashKey [40]byte
 
@@ -70,7 +189,8 @@ func (h ExtHash) Bytes() []byte {
 	copy(hashKey[:], h.Hash[:])
 	binary.LittleEndian.PutUint32(tmpBuf, uint32(h.BlockNum))
 	copy(hashKey[32:], tmpBuf)
-	binary.LittleEndian.PutUint32(tmpBuf, uint32(h.Idx))
+	tmpBuf[0], tmpBuf[1] = 0xff, 0xff
+	binary.LittleEndian.PutUint32(tmpBuf[2:], uint16(h.Idx))
 	copy(hashKey[36:], tmpBuf)
 
 	return hashKey[:]
@@ -82,7 +202,7 @@ func BytesToExtHash(b []byte) ExtHash {
 		b = b[len(b)-ExtHashLength:]
 		copy(h.Hash[ExtHashLength-len(b):], b)
 		h.BlockNum = binary.LittleEndian.Uint32(b[32:36])
-		h.Idx = binary.LittleEndian.Uint32(b[36:40])
+		h.Idx = binary.LittleEndian.Uint16(b[38:40])
 	} else {
 		if len(b) > HashLength {
 			b = b[len(b)-HashLength:]
@@ -90,24 +210,80 @@ func BytesToExtHash(b []byte) ExtHash {
 		copy(h.Hash[HashLength-len(b):], b)
 	}
 	return h
+}
+*/
 
-	/*
-	if len(b) > ExtHashLength {
-		b = b[len(b)-ExtHashLength:]
+func (h ExtHash) Bytes() []byte { 
+	hashKey := make([]byte, 40)
+	tmpBuf := make([]byte, 4)
+
+	copy(hashKey[:], h.Hash[:])
+	if h.BlockNum == 0 && h.Idx == 0 {
+		h.BlockNum, h.Idx = GetRandPaddings(h.Hash.Bytes())
 	}
-	//copy(h.Hash[ExtHashLength-len(b):], b)
-	copy(h.Hash[:],b[:])
+	binary.LittleEndian.PutUint32(tmpBuf, uint32(h.BlockNum))
+	copy(hashKey[32:], tmpBuf)
+	if h.Idx < 0xffff {
+		binary.LittleEndian.PutUint32(tmpBuf, uint32(0xffff))
+	} else {
+		binary.LittleEndian.PutUint32(tmpBuf, uint32(h.Idx))
+	}
+	copy(hashKey[36:], tmpBuf)
+
+	return hashKey[:]
+}
+
+func BytesToExtHash(b []byte) (h ExtHash) {
+
 	if len(b) == ExtHashLength {
+		b = b[len(b)-ExtHashLength:]
+		copy(h.Hash[ExtHashLength-len(b):], b)
 		h.BlockNum = binary.LittleEndian.Uint32(b[32:36])
 		h.Idx = binary.LittleEndian.Uint32(b[36:40])
+	} else {
+		if len(b) > HashLength {
+			b = b[len(b)-HashLength:]
+		}
+		copy(h.Hash[HashLength-len(b):], b)
+	}
+	if h.BlockNum == 0 && h.Idx == 0 {
+		h.BlockNum, h.Idx = GetRandPaddings(h.Hash.Bytes())
 	}
 	return h
-	*/
+
+	
+	//if len(b) > ExtHashLength {
+	//	b = b[len(b)-ExtHashLength:]
+	//}
+	////copy(h.Hash[ExtHashLength-len(b):], b)
+	//copy(h.Hash[:],b[:])
+	//if len(b) == ExtHashLength {
+	//	h.BlockNum = binary.LittleEndian.Uint32(b[32:36])
+	//	h.Idx = binary.LittleEndian.Uint32(b[36:40])
+	//}
+	//return h
+}
+func BytesToRootExtHash(b []byte) (h ExtHash) {
+
+	if len(b) == ExtHashLength {
+		b = b[len(b)-ExtHashLength:]
+		copy(h.Hash[ExtHashLength-len(b):], b)
+	} else {
+		if len(b) > HashLength {
+			b = b[len(b)-HashLength:]
+		}
+		copy(h.Hash[HashLength-len(b):], b)
+	}
+	h.BlockNum = 0
+	h.Idx = 0xffff
+	return h
 }
 
+/*
 func EmptyExtHash(h ExtHash) bool {
-	return h == ExtHash{}
+	return h == ExtHash{Idx:0xffff,}
 }
+*/
 
 func (h ExtHash) String() string {
 	return hexutil.Encode(h.Bytes())
@@ -121,14 +297,78 @@ func (h ExtHash) getShardIndex(shardMask int) int {
 	return h.Hash.getShardIndex(shardMask)
 }
 
+func ExtPaddingFilter(src []byte) []byte {
+        srcLen := len(src)
+        if srcLen > 90 {
+                return src
+        //} else if srcLen > 8 && src[srcLen - 6] == 0x00 && src[srcLen - 5] == 0x00 && src[srcLen-4] == 0xff && src[srcLen-3] == 0xff {
+        //774728 issue } else if srcLen > 8 && src[srcLen - 5] == 0x00 && src[srcLen-4] == 0xff && src[srcLen-3] == 0xff {
+        //} else if srcLen >= 40 && src[srcLen - 5] == 0x00 && src[srcLen-4] == 0xff && src[srcLen-3] == 0xff {
+        //11668759 } else if srcLen >= 40 && src[srcLen-4] == 0xff && src[srcLen-3] == 0xff {
+        } else if srcLen == 40 && src[srcLen-4] == 0xff && src[srcLen-3] == 0xff {
+                //fmt.Printf("~~~~~ src = %x, filter = %x\n", src, src[:srcLen-8])
+		reStr := make([]byte, srcLen-8)
+		copy(reStr[:], src[:srcLen-8])
+                return reStr
+	/*
+        } else if srcLen > 9 && src[srcLen - 7] == 0x00 && src[srcLen - 6] == 0x00 && src[srcLen-5] == 0xff && src[srcLen-4] == 0xff {
+                //fmt.Printf("~~~~~ src = %x, filter = %x\n", src, src[:srcLen-8])
+                tmpSrc := append(src[:srcLen-9], src[srcLen-1])
+                return tmpSrc
+	*/
+        }
+        //fmt.Printf("~~~~~ src = %x, same\n", src)
+        return src
+}
+
+func ExtNumPaddingFilter(src []byte) []byte {
+        var tmpSrc []byte
+
+        srcLen := len(src)
+        tmpSrc = make([]byte, srcLen)
+        copy(tmpSrc,src)
+        if srcLen > 81 {
+                return tmpSrc
+        } else if srcLen > 16 && tmpSrc[srcLen-1-1-4] == 0xf && tmpSrc[srcLen-7] == 0xf && tmpSrc[srcLen-8] == 0xf && tmpSrc[srcLen-9] == 0xf {
+                //fmt.Printf("~~~~~ src = %x, filter = %x\n", src, src[:srcLen-8])
+                reSrc := append(tmpSrc[:srcLen-1-16], tmpSrc[srcLen-1])
+                return reSrc
+        }
+        //fmt.Printf("~~~~~ src = %x, same\n", src)
+        return tmpSrc
+}
+
 func BigToExtHash(b *big.Int) ExtHash { return BytesToExtHash(b.Bytes()) }
+func BigToRootExtHash(b *big.Int) ExtHash { return BytesToRootExtHash(b.Bytes()) }
 
 func HexToExtHash(s string) ExtHash { return BytesToExtHash(FromHex(s)) }
 
 func (h Hash) ToExtHash() (ExtH ExtHash) {
 	ExtH.Hash = h
+	//ExtH.BlockNum = 0x96344628
+	//ExtH.Idx = 0x0f000000
+	//ExtH.BlockNum = 0
+	//ExtH.Idx = 0
+	ExtH.BlockNum, ExtH.Idx = GetRandPaddings(ExtH.Hash.Bytes())
+	return ExtH
+}
+
+func (h Hash) ToRootExtHash() (ExtH ExtHash) {
+	ExtH.Hash = h
+	/*  이건 나중에 enable.. 방어코드로 활용하는게 좋을듯 
+	hashMu.Lock()
+		extMap[h] = 0xffff
+	hashMu.Unlock()
+	*/
 	ExtH.BlockNum = 0
-	ExtH.Idx = 0
+	ExtH.Idx = 0xffff
+	return ExtH
+}
+
+func (h Hash) InitExtHash() (ExtH ExtHash) {
+	ExtH.Hash = h
+	ExtH.BlockNum = 0
+	ExtH.Idx = 0xffff
 	return ExtH
 }
 

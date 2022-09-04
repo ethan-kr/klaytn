@@ -343,7 +343,7 @@ func (fi *fastIterator) Debug() {
 // element per diff layer. The returned combo iterator can be used to walk over
 // the entire snapshot diff stack simultaneously.
 func newFastAccountIterator(tree *Tree, root common.ExtHash, seek common.ExtHash) (AccountIterator, error) {
-	return newFastIterator(tree, root, common.ExtHash{}, seek, true)
+	return newFastIterator(tree, root, common.InitExtHash(), seek, true)
 }
 
 // newFastStorageIterator creates a new hierarchical storage iterator with one

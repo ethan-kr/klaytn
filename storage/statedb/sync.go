@@ -107,7 +107,7 @@ func NewTrieSync(root common.ExtHash, database StateTrieReadDB, callback LeafCal
 		bloom:            bloom,
 		exist:            lruCache,
 	}
-	ts.AddSubTrie(root, 0, common.ExtHash{}, callback)
+	ts.AddSubTrie(root, 0, common.InitExtHash(), callback)
 	return ts
 }
 
@@ -142,7 +142,8 @@ func (s *TrieSync) AddSubTrie(root common.ExtHash, depth int, parent common.ExtH
 		callback: callback,
 	}
 	// If this sub-trie has a designated parent, link them together
-	if parent != (common.ExtHash{}) {
+	//if parent != (common.InitExtHash()) {
+	if parent.ToHash() != (common.Hash{}) {
 		ancestor := s.requests[parent]
 		if ancestor == nil {
 			panic(fmt.Sprintf("sub-trie ancestor not found: %x", parent))
@@ -159,7 +160,8 @@ func (s *TrieSync) AddSubTrie(root common.ExtHash, depth int, parent common.ExtH
 // contract code).
 func (s *TrieSync) AddRawEntry(hash common.ExtHash, depth int, parent common.ExtHash) {
 	// Short circuit if the entry is empty or already known
-	if hash == emptyState.ToExtHash() {
+	//if hash == emptyState.ToExtHash() {
+	if hash.ToHash() == emptyState {
 		return
 	}
 	if _, ok := s.membatch.batch[hash]; ok {
@@ -185,7 +187,8 @@ func (s *TrieSync) AddRawEntry(hash common.ExtHash, depth int, parent common.Ext
 		depth: depth,
 	}
 	// If this sub-trie has a designated parent, link them together
-	if parent != (common.ExtHash{}) {
+	//if parent != (common.InitExtHash()) {
+	if parent.ToHash() != (common.Hash{}) {
 		ancestor := s.requests[parent]
 		if ancestor == nil {
 			panic(fmt.Sprintf("raw-entry ancestor not found: %x", parent))

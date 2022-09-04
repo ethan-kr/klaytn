@@ -24,7 +24,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
-	"strings"
+	//"strings"
+	//"runtime/debug"
 
 	klaytnmetrics "github.com/klaytn/klaytn/metrics"
 
@@ -51,12 +52,18 @@ const (
 )
 
 const (
-	minWriteBufferSize             = 2 * opt.MiB
-	minBlockCacheCapacity          = 2 * minWriteBufferSize
-	MinOpenFilesCacheCapacity      = 16
+	//minWriteBufferSize             = 2 * opt.MiB
+	//minBlockCacheCapacity          = 2 * minWriteBufferSize
+	//MinOpenFilesCacheCapacity      = 16
+	//minBitsPerKeyForFilter         = 10
+	//minFileDescriptorsForDBManager = 2048
+	//minFileDescriptorsForLevelDB   = 16
+	minWriteBufferSize             = 32 * opt.MiB
+	minBlockCacheCapacity          = 32 * minWriteBufferSize
+	MinOpenFilesCacheCapacity      = 128
 	minBitsPerKeyForFilter         = 10
 	minFileDescriptorsForDBManager = 2048
-	minFileDescriptorsForLevelDB   = 16
+	minFileDescriptorsForLevelDB   = 128
 )
 
 var defaultLevelDBOption = &opt.Options{
@@ -278,10 +285,10 @@ func (db *levelDB) Put(key []byte, value []byte) error {
 }
 
 func (db *levelDB) put(key []byte, value []byte) error {
-	if strings.Index(db.fn, "/home/ubuntu/.__debug_bin/klay/chaindata/statetrie") >= 0 {
+	/*if strings.Index(db.fn, "/home/ubuntu/.__debug_bin/klay/chaindata/statetrie") >= 0 {
 		panic("state trie putted")
-	}
-	fmt.Printf("~~~~~ PUT = %x, value = %.40x(..%d)//\n",key, value, len(value))
+	}*/
+	//fmt.Printf("~~~~~ PUT = %x, value = %.40x(..%d)//\n",key, value, len(value))
 	return db.db.Put(key, value, nil)
 }
 
@@ -303,14 +310,21 @@ func (db *levelDB) Get(key []byte) ([]byte, error) {
 
 func (db *levelDB) get(key []byte) ([]byte, error) {
 	dat, err := db.db.Get(key, nil)
+	//if fmt.Sprintf("%.4x", key) == "6a6a2cd6" {
+	//if fmt.Sprintf("%.4x", key) == "02369dde" {
+	/*if fmt.Sprintf("%.8x", key) == "c68a68f28643f303" {
+		fmt.Printf("~~~~~ here 5\n")
+	}*/
+	//fmt.Printf("~~~~~ get = %x, db = %s\n", key, db.fn)
+	//debug.PrintStack()
 	if err != nil {
-		fmt.Printf("~~~~~ GET %x/ err = %s/\n",key, err.Error())
+		fmt.Printf("~~~~~ GET = %x, err = %s/\n",key, err.Error())
 		if err == leveldb.ErrNotFound {
 			return nil, dataNotFoundErr
 		}
 		return nil, err
 	}
-	fmt.Printf("~~~~~ GET %x, value = %.40x(..%d)//\n",key, dat, len(dat))
+	//fmt.Printf("~~~~~ GET = %x, value = %.40x(..%d)//\n",key, dat, len(dat))
 	return dat, nil
 }
 
@@ -526,7 +540,10 @@ type ldbBatch struct {
 
 // Put inserts the given value into the batch for later committing.
 func (b *ldbBatch) Put(key, value []byte) error {
-	fmt.Printf("~~~~~BPUT = %x, value = %.40x(..%d)//\n",key, value, len(value))
+	/*if fmt.Sprintf("%.4x", key) == "5b7df647" {
+		fmt.Printf("~~~~~ here 4\n")
+	}*/
+	//fmt.Printf("~~~~~BPUT = %x, value = %.300x(..%d)//\n",key, value, len(value))
 	b.b.Put(key, value)
 	b.size += len(value)
 	return nil

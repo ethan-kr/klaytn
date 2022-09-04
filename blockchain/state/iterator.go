@@ -138,7 +138,8 @@ func (it *NodeIterator) step() error {
 		if codeHash := pa.GetCodeHash(); !bytes.Equal(codeHash, emptyCodeHash) {
 			it.codeHash = common.BytesToExtHash(codeHash)
 			//addrHash := common.BytesToHash(it.stateIt.LeafKey())
-			it.Code, err = it.state.db.ContractCode(common.BytesToHash(codeHash).ToExtHash())
+			//it.Code, err = it.state.db.ContractCode(common.BytesToHash(codeHash).ToExtHash())
+			it.Code, err = it.state.db.ContractCode(common.BytesToExtHash(codeHash))
 			if err != nil {
 				return fmt.Errorf("code %x: %v", codeHash, err)
 			}
@@ -152,7 +153,7 @@ func (it *NodeIterator) step() error {
 // The method returns whether there are any more data left for inspection.
 func (it *NodeIterator) retrieve() bool {
 	// Clear out any previously set values
-	it.Hash = common.ExtHash{}
+	it.Hash = common.InitExtHash()
 	it.Path = []byte{}
 
 	// If the iteration's done, return no available data
@@ -169,7 +170,8 @@ func (it *NodeIterator) retrieve() bool {
 
 		it.Hash, it.Parent, it.Path = it.dataIt.Hash(), it.dataIt.Parent(), it.dataIt.Path()
 
-		if it.Parent == (common.ExtHash{}) {
+		//if it.Parent == (common.InitExtHash()) {
+		if it.Parent.ToHash() == (common.Hash{}) {
 			it.Parent = it.accountHash
 		}
 	case it.Code != nil:
@@ -394,7 +396,8 @@ func CheckStateConsistency(oldDB Database, newDB Database, root common.ExtHash, 
 			}
 		}
 
-		if !common.EmptyExtHash(oldIt.Hash) {
+		//if !common.EmptyExtHash(oldIt.Hash) {
+		if !common.EmptyHash(oldIt.Hash.ToHash()) {
 			nodes[oldIt.Hash] = struct{}{}
 		}
 

@@ -126,7 +126,7 @@ type (
 		prev uint64
 	}
 	addLogChange struct {
-		txhash common.ExtHash
+		txhash common.Hash
 	}
 	addPreimageChange struct {
 		hash common.ExtHash

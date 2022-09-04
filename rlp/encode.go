@@ -26,8 +26,7 @@ import (
 	"math/big"
 	"reflect"
 	"sync"
-
-	//"github.com/klaytn/klaytn/common"
+	//"crypto/sha256"
 )
 
 var (
@@ -35,6 +34,7 @@ var (
 	// These are useful when implementing EncodeRLP.
 	EmptyString = []byte{0x80}
 	EmptyList   = []byte{0xC0}
+	//ExtPadStr   = []byte{0x28, 0x46, 0x34, 0x96, 0x00, 0x00, 0x00, 0x00, 0x0f}
 )
 
 // Encoder is implemented by types that require custom
@@ -107,6 +107,8 @@ func EncodeToBytes(val interface{}) ([]byte, error) {
 	if err := eb.encode(val); err != nil {
 		return nil, err
 	}
+	//tmpVal := fmt.Sprintf("%v", val)
+	//fmt.Printf("~~~~~ rlp result? resha256 = %x, re = %.20x(..%d)\n", sha256.Sum256(eb.toBytes()), eb.toBytes(), len(eb.toBytes()))
 	return eb.toBytes(), nil
 }
 
@@ -352,12 +354,6 @@ var (
 // makeWriter creates a writer function for the given type.
 func makeWriter(typ reflect.Type, ts tags) (writer, error) {
 	kind := typ.Kind()
-	typeStr := fmt.Sprintf("%v", typ)
-	// hashOrNumber stuctureif typeStr == "common.ExtHash" || typeStr == "struct { Hash common.Hash; Number uint64 }" {
-	if typeStr == "common.ExtHash" {
-		//fmt.Printf("~~~~~~~~~ encode22 types kind = %v, type = %v\n", kind, typ)
-		return writeEthanByteArray, nil
-	}
 	switch {
 	case typ == rawValueType:
 		return writeRawValue, nil
@@ -452,29 +448,7 @@ func writeBigInt(i *big.Int, w *encbuf) error {
 }
 
 func writeBytes(val reflect.Value, w *encbuf) error {
-	tmpVal := val.Bytes()
-	zeroCnt := 0
-	for _, v := range tmpVal {
-		if v == 0 {
-			zeroCnt+=1
-		}
-	}
-	/*
-	lenVal := len(tmpVal)
-	if lenVal != 65 && lenVal != 505 && lenVal != 0 && lenVal != 16 {
-		fmt.Printf("~~~~~~~~~~~~~~ ethanArray3 typ = %v, kind = %v, val = %x, len = %d\n", val.Type(), val.Type().Kind(), tmpVal, len(tmpVal))
-	}
-	*/
-
-	//fmt.Printf("~~~~~~~~~~~~~~ ethanArray typ = %v, kind = %v, val = %.40x, len = %d\n", val.Type(), val.Type().Kind(), tmpVal, len(tmpVal))
-	if len(tmpVal) == 40 && tmpVal[32] == 0 && tmpVal[33] == 0 && tmpVal[34] == 0    &&    tmpVal[36] == 0  && tmpVal[37] == 0 && zeroCnt < 14 {
-		//fmt.Printf("~~~~~~~~~~~~~~ ethanArray4 typ = %v, kind = %v, val = %x, len = %d\n", val.Type(), val.Type().Kind(), tmpVal, len(tmpVal))
-		w.encodeString(tmpVal[:32])
-		// recently version w.writeBytes(tmpVal[:32])
-	} else {
-		w.encodeString(tmpVal)
-		// recently version w.writeBytes(tmpVal)
-	}
+	w.encodeString(val.Bytes())
 	return nil
 }
 
@@ -492,26 +466,6 @@ func writeByteArray(val reflect.Value, w *encbuf) error {
 	return nil
 }
 
-func writeEthanByteArray(val reflect.Value, w *encbuf) error {
-	/*
-	이렇게 하면 genesis 블럭에서 문제가 생김
-	tmpVal := val.Bytes()
-	fmt.Printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ethanWriteByteArray val = %x, len = %d\n", tmpVal, len(tmpVal))
-	w.encodeString(tmpVal[:32])
-	return nil
-	*/
-
-	/* 
-	제네시스 블럭을 잘 처리함
-	*/
-	//fmt.Printf("\n\n~~~~~~~~~~~~~~ ethanArray1 val = %x, len = %d\n\n\n", val.Field(0), val.Field(0).Len())
-	//return writeByteArray(val.Field(0), w)
-
-
-	fmt.Printf("~~~~~~~~~~~~~~ ethanArray1typ = %v, kind = %v, val = %.40x, len = %d\n", val.Type(), val.Type().Kind(), val.Field(0), val.Field(0).Len())
-	return writeByteArray(val.Field(0), w)
-}
-
 func writeString(val reflect.Value, w *encbuf) error {
 	s := val.String()
 	if len(s) == 1 && s[0] <= 0x7f {
@@ -525,6 +479,7 @@ func writeString(val reflect.Value, w *encbuf) error {
 }
 
 func writeEncoder(val reflect.Value, w *encbuf) error {
+	//fmt.Printf("~~~~~ type = %v, kind = %v\n", val.Type(), val.Type().Kind())
 	return val.Interface().(Encoder).EncodeRLP(w)
 }
 
@@ -588,7 +543,6 @@ func makeStructWriter(typ reflect.Type) (writer, error) {
 	writer := func(val reflect.Value, w *encbuf) error {
 		lh := w.list()
 		for _, f := range fields {
-			//fmt.Printf("\n\n* * * * * type = %v\n\n\n", typ)
 			if err := f.info.writer(val.Field(f.index), w); err != nil {
 				return err
 			}
@@ -706,3 +660,35 @@ func intsize(i uint64) (size int) {
 	}
 }
 
+func ExtPaddingFilter(src []byte) []byte {
+        srcLen := len(src)
+	if srcLen > 60 {
+		return src
+	} else if srcLen > 8 && src[srcLen-4] == 0xff && src[srcLen-3] == 0xff {
+		//fmt.Printf("~~~~~ src = %x, filter = %x\n", src, src[:srcLen-8])
+		return src[:srcLen-8]
+	} else if srcLen > 9 && src[srcLen-5] == 0xff && src[srcLen-4] == 0xff {
+		//fmt.Printf("~~~~~ src = %x, filter = %x\n", src, src[:srcLen-8])
+		tmpSrc := append(src[:srcLen-9], src[srcLen-1])
+		return tmpSrc
+	}
+	//fmt.Printf("~~~~~ src = %x, same\n", src)
+	return src
+}
+
+func ExtNumPaddingFilter(src []byte) []byte {
+	var tmpSrc []byte
+
+        srcLen := len(src)
+	tmpSrc = make([]byte, srcLen)
+	copy(tmpSrc,src)
+	if srcLen > 81 {
+		return tmpSrc[:]
+	} else if srcLen > 16 && tmpSrc[srcLen-1-1-4] == 0xf && tmpSrc[srcLen-7] == 0xf && tmpSrc[srcLen-8] == 0xf && tmpSrc[srcLen-9] == 0xf {
+		//fmt.Printf("~~~~~ src = %x, filter = %x\n", src, src[:srcLen-8])
+		reSrc := append(tmpSrc[:srcLen-1-16], tmpSrc[srcLen-1])
+		return reSrc
+	}
+	//fmt.Printf("~~~~~ src = %x, same\n", src)
+	return src
+}

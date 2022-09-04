@@ -85,9 +85,9 @@ type StateDB struct {
 	// The refund counter, also used by state transitioning.
 	refund uint64
 
-	thash, bhash common.ExtHash
+	thash, bhash common.Hash
 	txIndex      int
-	logs         map[common.ExtHash][]*types.Log
+	logs         map[common.Hash][]*types.Log
 	logSize      uint
 
 	preimages map[common.ExtHash][]byte
@@ -127,7 +127,7 @@ func New(root common.ExtHash, db Database, snaps *snapshot.Tree) (*StateDB, erro
 		stateObjects:             make(map[common.Address]*stateObject),
 		stateObjectsDirtyStorage: make(map[common.Address]struct{}),
 		stateObjectsDirty:        make(map[common.Address]struct{}),
-		logs:                     make(map[common.ExtHash][]*types.Log),
+		logs:                     make(map[common.Hash][]*types.Log),
 		preimages:                make(map[common.ExtHash][]byte),
 		journal:                  newJournal(),
 	}
@@ -154,7 +154,7 @@ func NewForPrefetching(root common.ExtHash, db Database, snaps *snapshot.Tree) (
 		stateObjects:             make(map[common.Address]*stateObject),
 		stateObjectsDirtyStorage: make(map[common.Address]struct{}),
 		stateObjectsDirty:        make(map[common.Address]struct{}),
-		logs:                     make(map[common.ExtHash][]*types.Log),
+		logs:                     make(map[common.Hash][]*types.Log),
 		preimages:                make(map[common.ExtHash][]byte),
 		journal:                  newJournal(),
 		prefetching:              true,
@@ -200,10 +200,10 @@ func (self *StateDB) Reset(root common.ExtHash) error {
 	self.trie = tr
 	self.stateObjects = make(map[common.Address]*stateObject)
 	self.stateObjectsDirty = make(map[common.Address]struct{})
-	self.thash = common.ExtHash{}
-	self.bhash = common.ExtHash{}
+	self.thash = common.Hash{}
+	self.bhash = common.Hash{}
 	self.txIndex = 0
-	self.logs = make(map[common.ExtHash][]*types.Log)
+	self.logs = make(map[common.Hash][]*types.Log)
 	self.logSize = 0
 	self.preimages = make(map[common.ExtHash][]byte)
 	self.clearJournalAndRefund()
@@ -213,15 +213,15 @@ func (self *StateDB) Reset(root common.ExtHash) error {
 func (self *StateDB) AddLog(log *types.Log) {
 	self.journal.append(addLogChange{txhash: self.thash})
 
-	log.TxHash = self.thash.ToHash()
-	log.BlockHash = self.bhash.ToHash()
+	log.TxHash = self.thash
+	log.BlockHash = self.bhash
 	log.TxIndex = uint(self.txIndex)
 	log.Index = self.logSize
 	self.logs[self.thash] = append(self.logs[self.thash], log)
 	self.logSize++
 }
 
-func (self *StateDB) GetLogs(hash common.ExtHash) []*types.Log {
+func (self *StateDB) GetLogs(hash common.Hash) []*types.Log {
 	return self.logs[hash]
 }
 
@@ -348,7 +348,7 @@ func (self *StateDB) GetState(addr common.Address, hash common.ExtHash) common.E
 	if stateObject != nil {
 		return stateObject.GetState(self.db, hash)
 	}
-	return common.ExtHash{}
+	return common.InitExtHash()
 }
 
 // GetCommittedState retrieves a value from the given account's committed storage trie.
@@ -357,7 +357,7 @@ func (self *StateDB) GetCommittedState(addr common.Address, hash common.ExtHash)
 	if stateObject != nil {
 		return stateObject.GetCommittedState(self.db, hash)
 	}
-	return common.ExtHash{}
+	return common.InitExtHash()
 }
 
 // IsContractAvailable returns true if the account corresponding to the given address implements ProgramAccount.
@@ -442,9 +442,11 @@ func (self *StateDB) HasSuicided(addr common.Address) bool {
 // AddBalance adds amount to the account associated with addr.
 func (self *StateDB) AddBalance(addr common.Address, amount *big.Int) {
 	stateObject := self.GetOrNewStateObject(addr)
+	//fmt.Printf("~~~~~ addr1 : %x, v1=%d, v2=%d\n", addr, stateObject.Balance(), amount)
 	if stateObject != nil {
 		stateObject.AddBalance(amount)
 	}
+	//fmt.Printf("~~~~~ addr2 : %x, v1=%d, v2=%d\n", addr, stateObject.Balance(), amount)
 }
 
 // SubBalance subtracts amount from the account associated with addr.
@@ -490,7 +492,7 @@ func (self *StateDB) SetState(addr common.Address, key, value common.ExtHash) {
 	stateObject := self.GetOrNewSmartContract(addr)
 	if stateObject != nil {
 		stateObject.SetState(self.db, key, value)
-		fmt.Printf("~~~~ SetState key=%x, value=%x\n", key, value)
+		//fmt.Printf("~~~~ SetState key=%x, value=%x\n", key, value)
 	}
 }
 
@@ -562,6 +564,7 @@ func (self *StateDB) updateStateObject(stateObject *stateObject) {
 			panic(fmt.Errorf("can't encode object at %x: %v", addr[:], err))
 		}
 		self.setError(self.trie.TryUpdate(addr[:], data))
+		//fmt.Printf("~~~~~ USO addr = %x, data = %x\n", addr, data)
 		snapshotData = data
 	}
 
@@ -627,6 +630,9 @@ func (self *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 		}
 		// Second, the object for given address is not cached.
 		// Load the object from the database.
+		if fmt.Sprintf("%x",addr) == "942a8d56c6330578b1e856c1c972a1ce621ff1c4" {
+			fmt.Printf("~~~~~ herer\n")
+		}
 		enc, err := self.trie.TryGet(addr[:])
 		if len(enc) == 0 {
 			self.setError(err)
@@ -805,7 +811,7 @@ func (self *StateDB) Copy() *StateDB {
 		stateObjects:      make(map[common.Address]*stateObject, len(self.journal.dirties)),
 		stateObjectsDirty: make(map[common.Address]struct{}, len(self.journal.dirties)),
 		refund:            self.refund,
-		logs:              make(map[common.ExtHash][]*types.Log, len(self.logs)),
+		logs:              make(map[common.Hash][]*types.Log, len(self.logs)),
 		logSize:           self.logSize,
 		preimages:         make(map[common.ExtHash][]byte),
 		journal:           newJournal(),
@@ -964,12 +970,13 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.ExtHash {
 	if EnabledExpensive {
 		defer func(start time.Time) { s.AccountHashes += time.Since(start) }(time.Now())
 	}
-	return s.trie.Hash()
+	//return s.trie.Hash()
+	return s.trie.RootHash()
 }
 
 // Prepare sets the current transaction hash and index and block hash which is
 // used when the EVM emits new state logs.
-func (self *StateDB) Prepare(thash, bhash common.ExtHash, ti int) {
+func (self *StateDB) Prepare(thash, bhash common.Hash, ti int) {
 	self.thash = thash
 	self.bhash = bhash
 	self.txIndex = ti
@@ -984,7 +991,7 @@ func (s *StateDB) clearJournalAndRefund() {
 // Commit writes the state to the underlying in-memory trie database.
 func (s *StateDB) Commit(deleteEmptyObjects bool) (root common.ExtHash, err error) {
 	if s.dbErr != nil {
-		return common.ExtHash{}, fmt.Errorf("commit aborted due to earlier error: %v", s.dbErr)
+		return common.InitExtHash(), fmt.Errorf("commit aborted due to earlier error: %v", s.dbErr)
 	}
 
 	defer s.clearJournalAndRefund()
@@ -1012,7 +1019,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root common.ExtHash, err erro
 				}
 				// Write any storage changes in the state object to its storage trie.
 				if err := stateObject.CommitStorageTrie(s.db); err != nil {
-					return common.ExtHash{}, err
+					return common.InitExtHash(), err
 				}
 			}
 			// Update the object in the main account trie.
@@ -1047,7 +1054,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root common.ExtHash, err erro
 			}
 		}
 		return nil
-	})
+	}, true)
 
 	// If snapshotting is enabled, update the snapshot tree with this new version
 	if s.snap != nil {
@@ -1075,7 +1082,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root common.ExtHash, err erro
 
 // GetTxHash returns the hash of current running transaction.
 func (s *StateDB) GetTxHash() common.Hash {
-	return s.thash.ToHash()
+	return s.thash
 }
 
 var errNotExistingAddress = fmt.Errorf("there is no account corresponding to the given address")
@@ -1084,14 +1091,14 @@ var errNotContractAddress = fmt.Errorf("given address is not a contract address"
 func (s *StateDB) GetContractStorageRoot(contractAddr common.Address) (common.ExtHash, error) {
 	acc := s.GetAccount(contractAddr)
 	if acc == nil {
-		return common.ExtHash{}, errNotExistingAddress
+		return common.InitExtHash(), errNotExistingAddress
 	}
 	if acc.Type() != account.SmartContractAccountType {
-		return common.ExtHash{}, errNotContractAddress
+		return common.InitExtHash(), errNotContractAddress
 	}
 	contract, true := acc.(*account.SmartContractAccount)
 	if !true {
-		return common.ExtHash{}, errNotContractAddress
+		return common.InitExtHash(), errNotContractAddress
 	}
 	return contract.GetStorageRoot(), nil
 }

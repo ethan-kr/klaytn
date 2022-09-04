@@ -100,14 +100,18 @@ var (
 func gasSStore(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
 	var (
 		y, x    = stack.Back(1), stack.Back(0)
-		current = evm.StateDB.GetState(contract.Address(), common.BigToExtHash(x))
+		//current = evm.StateDB.GetState(contract.Address(), common.BigToExtHash(x))
+		current = evm.StateDB.GetState(contract.Address(), common.BigToRootExtHash(x))
 	)
 	// This checks for 3 scenario's and calculates gas accordingly
 	// 1. From a zero-value address to a non-zero value         (NEW VALUE)
 	// 2. From a non-zero value address to a zero-value address (DELETE)
 	// 3. From a non-zero to a non-zero                         (CHANGE)
-	isOldEmpty := common.EmptyExtHash(current)
+	//Ethan 아래 함수들 확인 필요함
+	isOldEmpty := common.EmptyHash(current.ToHash())
 	isNewEmpty := common.EmptyHash(common.BigToHash(y))
+	//isOldEmpty := common.EmptyExtHash(current)
+	//isNewEmpty := common.EmptyHash(common.BigToHash(y))
 	if isOldEmpty && !isNewEmpty {
 		// 0 => non 0
 		return params.SstoreSetGas, nil
@@ -151,23 +155,30 @@ func gasSStoreEIP2200(evm *EVM, contract *Contract, stack *Stack, mem *Memory, m
 	}
 	original := evm.StateDB.GetCommittedState(contract.Address(), common.BigToExtHash(x))
 	if original == current {
-		if original == (common.ExtHash{}) { // create slot (2.1.1)
+		//if original == (common.InitExtHash()) { // create slot (2.1.1)
+		if original.ToHash() == (common.Hash{}) { // create slot (2.1.1)
 			return params.SstoreSetGasEIP2200, nil
 		}
-		if value == (common.ExtHash{}) { // delete slot (2.1.2b)
+		//if value == (common.InitExtHash()) { // delete slot (2.1.2b)
+		if value.ToHash() == (common.Hash{}) { // delete slot (2.1.2b)
 			evm.StateDB.AddRefund(params.SstoreClearsScheduleRefundEIP2200)
 		}
 		return params.SstoreResetGasEIP2200, nil // write existing slot (2.1.2)
 	}
-	if original != (common.ExtHash{}) {
-		if current == (common.ExtHash{}) { // recreate slot (2.2.1.1)
+	//if original != (common.InitExtHash()) {
+	if original.ToHash() != (common.Hash{}) {
+		//if current == (common.InitExtHash()) { // recreate slot (2.2.1.1)
+		if current.ToHash() == (common.Hash{}) { // recreate slot (2.2.1.1)
 			evm.StateDB.SubRefund(params.SstoreClearsScheduleRefundEIP2200)
-		} else if value == (common.ExtHash{}) { // delete slot (2.2.1.2)
+		//} else if value == (common.InitExtHash()) { // delete slot (2.2.1.2)
+		} else if value.ToHash() == (common.Hash{}) { // delete slot (2.2.1.2)
 			evm.StateDB.AddRefund(params.SstoreClearsScheduleRefundEIP2200)
 		}
 	}
-	if original == value {
-		if original == (common.ExtHash{}) { // reset to original inexistent slot (2.2.2.1)
+	//if original == value {
+	if original.ToHash() == value.ToHash() {
+		//if original == (common.InitExtHash()) { // reset to original inexistent slot (2.2.2.1)
+		if original.ToHash() == (common.Hash{}) { // reset to original inexistent slot (2.2.2.1)
 			evm.StateDB.AddRefund(params.SstoreSetGasEIP2200 - params.SloadGasEIP2200)
 		} else { // reset to original existing slot (2.2.2.2)
 			evm.StateDB.AddRefund(params.SstoreResetGasEIP2200 - params.SloadGasEIP2200)

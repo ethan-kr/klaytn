@@ -90,6 +90,7 @@ func (d DeriveShaSimple) DeriveSha(list DerivableList) common.Hash {
 		return common.BytesToHash(hasher.Sum(nil))
 	}
 
+	//fmt.Printf("~~~~ hash31 = %x\n", encoded[0])
 	return common.BytesToHash(encoded[0])
 }
 
@@ -107,5 +108,6 @@ func (d DeriveShaConcat) DeriveSha(list DerivableList) (hash common.Hash) {
 	}
 	hasher.Sum(hash[:0])
 
+	//fmt.Printf("~~~~ hash32 = %x\n", hash)
 	return hash
 }

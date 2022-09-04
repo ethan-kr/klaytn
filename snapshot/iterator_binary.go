@@ -47,8 +47,8 @@ func (dl *diffLayer) initBinaryAccountIterator() Iterator {
 	parent, ok := dl.parent.(*diffLayer)
 	if !ok {
 		l := &binaryIterator{
-			a:               dl.AccountIterator(common.ExtHash{}),
-			b:               dl.Parent().AccountIterator(common.ExtHash{}),
+			a:               dl.AccountIterator(common.InitExtHash()),
+			b:               dl.Parent().AccountIterator(common.InitExtHash()),
 			accountIterator: true,
 		}
 		l.aDone = !l.a.Next()
@@ -56,7 +56,7 @@ func (dl *diffLayer) initBinaryAccountIterator() Iterator {
 		return l
 	}
 	l := &binaryIterator{
-		a:               dl.AccountIterator(common.ExtHash{}),
+		a:               dl.AccountIterator(common.InitExtHash()),
 		b:               parent.initBinaryAccountIterator(),
 		accountIterator: true,
 	}
@@ -73,7 +73,7 @@ func (dl *diffLayer) initBinaryStorageIterator(account common.ExtHash) Iterator 
 	if !ok {
 		// If the storage in this layer is already destructed, discard all
 		// deeper layers but still return an valid single-branch iterator.
-		a, destructed := dl.StorageIterator(account, common.ExtHash{})
+		a, destructed := dl.StorageIterator(account, common.InitExtHash())
 		if destructed {
 			l := &binaryIterator{
 				a:       a,
@@ -85,7 +85,7 @@ func (dl *diffLayer) initBinaryStorageIterator(account common.ExtHash) Iterator 
 		}
 		// The parent is disk layer, don't need to take care "destructed"
 		// anymore.
-		b, _ := dl.Parent().StorageIterator(account, common.ExtHash{})
+		b, _ := dl.Parent().StorageIterator(account, common.InitExtHash())
 		l := &binaryIterator{
 			a:       a,
 			b:       b,
@@ -97,7 +97,7 @@ func (dl *diffLayer) initBinaryStorageIterator(account common.ExtHash) Iterator 
 	}
 	// If the storage in this layer is already destructed, discard all
 	// deeper layers but still return an valid single-branch iterator.
-	a, destructed := dl.StorageIterator(account, common.ExtHash{})
+	a, destructed := dl.StorageIterator(account, common.InitExtHash())
 	if destructed {
 		l := &binaryIterator{
 			a:       a,

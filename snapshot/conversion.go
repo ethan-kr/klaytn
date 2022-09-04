@@ -243,7 +243,8 @@ func generateTrieRoot(it Iterator, accountHash common.ExtHash, generatorFn trieG
 	)
 	// Start to feed leaves
 	for it.Next() {
-		if accountHash == (common.ExtHash{}) {
+		//if accountHash == (common.InitExtHash()) {
+		if accountHash.ToHash() == (common.Hash{}) {
 			var (
 				err      error
 				fullData []byte
@@ -296,7 +297,8 @@ func generateTrieRoot(it Iterator, accountHash common.ExtHash, generatorFn trieG
 		// Accumulate the generation statistic if it's required.
 		processed++
 		if time.Since(logged) > 3*time.Second && stats != nil {
-			if accountHash == (common.ExtHash{}) {
+			//if accountHash == (common.InitExtHash()) {
+			if accountHash.ToHash() == (common.Hash{}) {
 				stats.progressAccounts(it.Hash(), processed)
 			} else {
 				stats.progressContract(accountHash, it.Hash(), processed)
@@ -306,7 +308,8 @@ func generateTrieRoot(it Iterator, accountHash common.ExtHash, generatorFn trieG
 	}
 	// Commit the last part statistic.
 	if processed > 0 && stats != nil {
-		if accountHash == (common.ExtHash{}) {
+		//if accountHash == (common.InitExtHash()) {
+		if accountHash.ToHash() == (common.Hash{}) {
 			stats.finishAccounts(processed)
 		} else {
 			stats.finishContract(accountHash, processed)
@@ -317,7 +320,7 @@ func generateTrieRoot(it Iterator, accountHash common.ExtHash, generatorFn trieG
 
 func trieGenerate(in chan trieKV, out chan common.ExtHash) {
 	db := statedb.NewDatabase(database.NewMemoryDBManager())
-	t, _ := statedb.NewTrie(common.ExtHash{}, db)
+	t, _ := statedb.NewTrie(common.InitExtHash(), db)
 	for leaf := range in {
 		t.TryUpdate(leaf.key.Bytes(), leaf.value)
 	}
@@ -325,7 +328,7 @@ func trieGenerate(in chan trieKV, out chan common.ExtHash) {
 	if db == nil {
 		root = t.Hash()
 	} else {
-		root, _ = t.Commit(nil)
+		root, _ = t.Commit(nil, true)
 	}
 	out <- root
 }

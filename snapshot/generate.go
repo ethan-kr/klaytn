@@ -101,7 +101,8 @@ type generatorStats struct {
 // from the internally maintained statistics.
 func (gs *generatorStats) Log(msg string, root common.ExtHash, marker []byte) {
 	var ctx []interface{}
-	if root != (common.ExtHash{}) {
+	//if root != (common.InitExtHash()) {
+	if root.ToHash() != (common.Hash{}) {
 		ctx = append(ctx, []interface{}{"root", root}...)
 	}
 	// Figure out whether we're after or within an account
@@ -310,7 +311,7 @@ func (dl *diskLayer) proveRange(stats *generatorStats, root common.ExtHash, pref
 			dbm    = database.NewMemoryDBManager()
 			triedb = statedb.NewDatabase(dbm)
 		)
-		tr, _ := statedb.NewTrie(common.ExtHash{}, triedb)
+		tr, _ := statedb.NewTrie(common.InitExtHash(), triedb)
 		for i, key := range keys {
 			tr.TryUpdate(key, vals[i])
 		}
@@ -337,7 +338,7 @@ func (dl *diskLayer) proveRange(stats *generatorStats, root common.ExtHash, pref
 	}
 	// Generate the Merkle proofs for the first and last element
 	if origin == nil {
-		origin = common.ExtHash{}.Bytes()
+		origin = common.InitExtHash().Bytes()
 	}
 	if err := tr.Prove(origin, 0, proof); err != nil {
 		logger.Debug("Failed to prove range", "kind", kind, "origin", origin, "err", err)
@@ -438,12 +439,12 @@ func (dl *diskLayer) generateRange(root common.ExtHash, prefix []byte, kind stri
 	if len(result.keys) > 0 {
 		snapNodeCache = database.NewMemoryDBManager()
 		snapTrieDb := statedb.NewDatabase(snapNodeCache)
-		//Ethan snapTrie, _ := statedb.NewTrie(common.ExtHash{}, snapTrieDb)
-		snapTrie, _ := statedb.NewTrie(common.ExtHash{}, snapTrieDb)
+		//Ethan snapTrie, _ := statedb.NewTrie(common.InitExtHash(), snapTrieDb)
+		snapTrie, _ := statedb.NewTrie(common.InitExtHash(), snapTrieDb)
 		for i, key := range result.keys {
 			snapTrie.Update(key, result.vals[i])
 		}
-		root, _ := snapTrie.Commit(nil)
+		root, _ := snapTrie.Commit(nil, true)
 		// TODO-Klaytn update proper block number
 		snapTrieDb.Commit(root, false, 0)
 	}
@@ -671,6 +672,7 @@ func (dl *diskLayer) generate(stats *generatorStats) {
 		}
 
 		rootHash := contractAcc.GetStorageRoot()
+		//Ethan. 아래가 ToRootExtHash가 되어야지 않을까?
 		if rootHash == emptyRoot.ToExtHash() {
 			prefix := append(database.SnapshotStoragePrefix, accountHash.Bytes()...)
 			keyLen := len(database.SnapshotStoragePrefix) + 2*common.ExtHashLength

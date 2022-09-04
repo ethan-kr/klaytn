@@ -86,7 +86,7 @@ func (b *BlockGen) AddTx(tx *types.Transaction) {
 // added. If contract code relies on the BLOCKHASH instruction,
 // the block in chain will be returned.
 func (b *BlockGen) AddTxWithChain(bc *BlockChain, tx *types.Transaction) {
-	b.statedb.Prepare(tx.Hash().ToExtHash(), common.ExtHash{}, len(b.txs))
+	b.statedb.Prepare(tx.Hash(), common.Hash{}, len(b.txs))
 	receipt, _, _, err := bc.ApplyTransaction(b.config, &params.AuthorAddressForTesting, b.statedb, b.header, tx, &b.header.GasUsed, &vm.Config{})
 	if err != nil {
 		panic(err)
@@ -207,7 +207,7 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		return nil, nil
 	}
 	for i := 0; i < n; i++ {
-		statedb, err := state.New(parent.Root().ToExtHash(), state.NewDatabase(db), nil)
+		statedb, err := state.New(parent.Root().ToRootExtHash(), state.NewDatabase(db), nil)
 		if err != nil {
 			panic(err)
 		}

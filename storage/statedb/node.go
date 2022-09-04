@@ -24,17 +24,22 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"bytes"
 
 	"github.com/klaytn/klaytn/common"
 	"github.com/klaytn/klaytn/rlp"
 )
 
 var indices = []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f", "[17]"}
+//var padfind = []byte{0x28, 0x46, 0x34, 0x96, 0x00, 0x00, 0x00, 0x00, 0x0f}
+var padding = []byte{0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00}
 
 type node interface {
 	fstring(string) string
 	cache() (hashNode, bool)
 	lenEncoded() uint16
+	//Bytes()	[]byte
+	//ToPreHashRLP()	node
 }
 
 type (
@@ -47,8 +52,27 @@ type (
 		Val   node
 		flags nodeFlag
 	}
+
 	hashNode  []byte
 	valueNode []byte
+	/*
+	preFullNode	fullNode
+	extFullNode	fullNode
+
+	preShortNode	shortNode
+	extShortNode	shortNode
+
+	preHashNode	hashNode
+	extHashNode	hashNode
+
+	preValueNode	valueNode
+	extValueNode	valueNode
+	extFullNode	fullNode
+	extShortNode	shortNode
+	extHashNode	hashNode
+	extValueNode	valueNode
+	*/
+
 )
 
 // nilValueNode is used when collapsing internal trie nodes for hashing, since
@@ -69,8 +93,172 @@ func (n *fullNode) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, nodes)
 }
 
+/*
+func (n *fullNode) ToPreHashRLP() node {
+	var nodes [17]node
+	var flag nodeFlag 
+
+	for i, child := range &n.Children {
+		if child != nil {
+			//tmpN = n.ToExtHashRLP()
+			nodes[i] = child.ToPreHashRLP()
+		} else {
+			nodes[i] = nil
+		}
+	}
+	flag = n.flags
+	flag.hash = common.ExtPaddingFilter(n.flags.hash)
+	newF := fullNode{
+		Children: nodes,
+		flags: flag,
+	}
+	fmt.Printf("full rlp old = %v\nfull rlp new = %v\n", n, &newF)
+
+	return &newF
+}
+
+func (n *shortNode) ToPreHashRLP() node {
+	//tmpVal := modifyRLP(n.Val.(valueNode).Bytes())
+	tmpVal, err := common.RlpPaddingFilter(n.Val.(valueNode).Bytes())
+	if err != nil {
+		tmpVal = n.Val.(valueNode).Bytes()
+	}
+	fmt.Printf("short rlp old = %x\nshort rlp new = %x\n",n.Val.(valueNode).Bytes(), tmpVal)
+	return &extShortNode{
+		Key:	common.ExtPaddingFilter(n.Key),
+		Val:	toValueNode(tmpVal),
+		flags:	n.flags,
+	}
+}
+*/
+
+
+//func (n *shortNode) ToPreHashRLP() node {
+//	var err error
+//	var tmpValue valueNode
+//	serializer := account.NewAccountSerializer()
+//	if err = rlp.DecodeBytes(n.Val.(valueNode).Bytes(), serializer); err == nil {
+//		//err = rlp.Encode(&tmpValue, serializer)
+//		fmt.Printf("~~~~~ enc shortnode rlp success1 - %v, data = %x, account = %v\n", serializer, n.Val.(valueNode).Bytes(), serializer.GetAccount())
+//	} else if _, content, _, err := rlp.Split(n.Val.(valueNode).Bytes()); err == nil {
+//	//} else if _, _, _, err = rlp.Split(n.Val.(valueNode).Bytes()); err == nil {
+//		//err = rlp.Encode(&tmpValue, content)
+//		fmt.Printf("~~~~~ enc shortnode rlp success2 - %v, data = %x\n", content, n.Val.(valueNode).Bytes())
+//	} else {
+//		panic("~~~~~ enc shortnode rlp unknown type")
+//	}
+//	return &extShortNode{
+//		Key:	common.ExtPaddingFilter(n.Key),
+//		Val:	tmpValue,
+//		//Val:	n.Val, 
+//		flags:	n.flags,
+//	}
+//}
+
+
+func modifyRLP(src []byte) (dst []byte) {
+	//srcLen := len(src)
+	padLen := len(padding)
+	idx := 0
+	for {
+		sidx := bytes.Index(src[idx:], padding)
+
+		if sidx < 0 {
+			dst = append(dst, src[idx:]...)
+			break
+		} else {
+			dst = append(dst, src[idx:idx + sidx]...)
+			dst[idx + sidx -1 - 32] -= uint8(padLen)
+			idx += (sidx + padLen)
+		}
+	}
+	return dst
+}
+
+//func (n *shortNode) ToPreHashRLP() node {
+//	//var tmpValueNode valueNode
+//	nVal := common.ExtPaddingFilter(n.Val.(valueNode).Bytes())
+//	fmt.Printf("zzzzz org = %x, to %x\n", n.Val.(valueNode).Bytes(), nVal)
+////	copy(tmpValueNode[:], nVal[:])
+//	return &extShortNode{
+//		Key:	common.ExtPaddingFilter(n.Key),
+//		Val:	toValueNode(nVal),
+//		//Val:	n.Val, 
+//		flags:	n.flags,
+//	}
+//}
+
+/*
+func (n hashNode) ToPreHashRLP() node {
+	var ext hashNode
+	ext = common.ExtPaddingFilter(n)
+	fmt.Printf("hash rlp old = %v\nhash rlp new = %v\n", n, ext)
+	return ext
+}
+
+func (n valueNode) ToPreHashRLP() node {
+	tmpVal, err := common.RlpPaddingFilter(n.Bytes())
+	if err != nil {
+		tmpVal = n.Bytes()
+	}
+	fmt.Printf("value rlp old = %v\nvalue rlp new = %v\n", n, tmpVal) 
+	return toValueNode(tmpVal)
+}
+*/
+
+/*
+func (n *extFullNode) ToPreHashRLP() node	{ panic("this should never called function") }
+func (n *extShortNode) ToPreHashRLP() node	{ panic("this should never called function") }
+func (n extHashNode) ToPreHashRLP() node	{ panic("this should never called function") }
+func (n extValueNode) ToPreHashRLP() node	{ panic("this should never called function") }
+*/
+
+/*
+//Ethan 그냥 &로 넘겨도 되나? make로 안만들어줘도 되나?
+func (ext extFullNode) toPreHashNode() (n *fullNode)	{ return &fullNode(ext) }
+func (ext extShortNode) toPreHashNode() (n *shortNode)	{ return &shortNode(ext) }
+func (ext extHashNode) toPreHashNode() (n hashNode)	{ return &hashNode(ext) }
+func (ext extValueNode) toPreHashNode() (n hashNode)	{ return &hashNode(ext) }
+*/
+
+/*
+func (n *orgShortNode) EncodeRLP(w io.Writer) error {
+	n2 := &shortNodeRlp{
+		Key:	rlp.ExtPaddingFilter(n.Key),
+		Val:	n.Val,
+		flags:	n.flags,
+	}
+
+	return rlp.Encode(w, n2)
+}
+*/
+
+/*
+//Ethan 220624
+func (n valueNode) EncodeRLP(w io.Writer) error {
+	tmpVal, err := common.RlpPaddingFilter(n.Bytes())
+	if err != nil {
+		tmpVal = n.Bytes()
+	}
+	return rlp.Encode(w, tmpVal)
+}
+
+func (n hashNode) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, rlp.ExtPaddingFilter(n))
+}
+*/
+
 func (n *fullNode) copy() *fullNode   { copy := *n; return &copy }
 func (n *shortNode) copy() *shortNode { copy := *n; return &copy }
+func toValueNode(src []byte) valueNode {
+	copy := src
+	return copy
+}
+
+func toHashNode(src []byte) hashNode {
+	copy := src
+	return copy
+}
 
 // nodeFlag contains caching-related metadata about a node.
 type nodeFlag struct {
@@ -81,19 +269,49 @@ type nodeFlag struct {
 
 func (n *fullNode) cache() (hashNode, bool)  { return n.flags.hash, n.flags.dirty }
 func (n *shortNode) cache() (hashNode, bool) { return n.flags.hash, n.flags.dirty }
-func (n hashNode) cache() (hashNode, bool)   { return nil, true }
+//func (n hashNode) cache() (hashNode, bool)   { return nil, true }
+func (n hashNode) cache() (hashNode, bool)   { return n, false }
 func (n valueNode) cache() (hashNode, bool)  { return nil, true }
+/*
+func (n *extFullNode) cache() (hashNode, bool)  { panic("this should never called function") }
+func (n *extShortNode) cache() (hashNode, bool) { panic("this should never called function") }
+func (n extHashNode) cache() (hashNode, bool)   { panic("this should never called function") }
+func (n extValueNode) cache() (hashNode, bool)  { panic("this should never called function") }
+*/
 
 func (n *fullNode) lenEncoded() uint16  { return n.flags.lenEncoded }
 func (n *shortNode) lenEncoded() uint16 { return n.flags.lenEncoded }
 func (n hashNode) lenEncoded() uint16   { return 0 }
 func (n valueNode) lenEncoded() uint16  { return 0 }
+/*
+func (n *extFullNode) lenEncoded() uint16  { panic("this should never called function") }
+func (n *extShortNode) lenEncoded() uint16 { panic("this should never called function") }
+func (n extHashNode) lenEncoded() uint16   { panic("this should never called function") }
+func (n extValueNode) lenEncoded() uint16  { panic("this should never called function") }
+*/
 
 // Pretty printing.
 func (n *fullNode) String() string  { return n.fstring("") }
 func (n *shortNode) String() string { return n.fstring("") }
 func (n hashNode) String() string   { return n.fstring("") }
 func (n valueNode) String() string  { return n.fstring("") }
+/*
+func (n *extFullNode) String() string  { panic("this should never called function") }
+func (n *extShortNode) String() string { panic("this should never called function") }
+func (n extHashNode) String() string   { panic("this should never called function") }
+func (n extValueNode) String() string  { panic("this should never called function") }
+*/
+
+
+//func (n *fullNode) Bytes() []byte  { return n[:] }
+//func (n *shortNode) Bytes() []byte { return n[:] }
+func (n hashNode) Bytes() []byte   { return n[:] }
+func (n valueNode) Bytes() []byte  { return n[:] }
+/*
+func (n rawNode) Bytes() []byte  { return n[:] }
+func (n rawShortNode) Bytes() []byte  { return n[:] }
+func (n rawFullNode) Bytes() []byte  { return n[:] }
+*/
 
 func (n *fullNode) fstring(ind string) string {
 	resp := fmt.Sprintf("[\n%s  ", ind)
@@ -115,6 +333,13 @@ func (n hashNode) fstring(ind string) string {
 func (n valueNode) fstring(ind string) string {
 	return fmt.Sprintf("%x ", []byte(n))
 }
+
+/*
+func (n *extFullNode) fstring(string) string  { panic("this should never called function") }
+func (n *extShortNode) fstring(string) string { panic("this should never called function") }
+func (n extHashNode) fstring(string) string   { panic("this should never called function") }
+func (n extValueNode) fstring(string) string  { panic("this should never called function") }
+*/
 
 func mustDecodeNode(hash, buf []byte) node {
 	n, err := decodeNode(hash, buf)
@@ -151,6 +376,14 @@ func decodeShort(hash, elems []byte) (node, error) {
 		return nil, err
 	}
 	flag := nodeFlag{hash: hash}
+	/*
+	//key := compactToHex(kbuf)
+	//Ethan deocode가 잘 되면 이부분이 있을 필요가 없음//
+	tmpKey := common.ExtNumPaddingFilter(compactToHex(kbuf))
+	tmpKeyLen := len(tmpKey)
+	extPad := []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0xf, 0xf, 0xf, 0xf, 0x0, 0x0, 0x0, 0x0, 0x10}
+	key := append(tmpKey[:tmpKeyLen-1], extPad...)
+	*/
 	key := compactToHex(kbuf)
 	if hasTerm(key) {
 		// value node
@@ -206,10 +439,13 @@ func decodeRef(buf []byte) (node, []byte, error) {
 	case kind == rlp.String && len(val) == 0:
 		// empty node
 		return nil, rest, nil
-	case kind == rlp.String && len(val) == 32:
+	//Ethan 헷갈리네....
+	//case kind == rlp.String && len(val) == 32:
+	//case kind == rlp.String && len(val) == common.HashLength:
+	case kind == rlp.String && len(val) == common.ExtHashLength:
 		return append(hashNode{}, val...), rest, nil
 	default:
-		return nil, nil, fmt.Errorf("invalid RLP string size %d (want 0 or 32)", len(val))
+		return nil, nil, fmt.Errorf("invalid RLP string size %d (want 0 or %d)", len(val), common.ExtHashLength)
 	}
 }
 

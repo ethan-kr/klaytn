@@ -200,6 +200,7 @@ func setEngineType(chainConfig *params.ChainConfig) {
 // New creates a new CN object (including the
 // initialisation of the common CN object)
 func New(ctx *node.ServiceContext, config *Config) (*CN, error) {
+	common.InitBlocksIndex()
 	if err := checkSyncMode(config); err != nil {
 		return nil, err
 	}

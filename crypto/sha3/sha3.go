@@ -4,6 +4,7 @@
 
 package sha3
 
+//import "fmt"
 // spongeDirection indicates the direction bytes are flowing through the sponge.
 type spongeDirection int
 
@@ -169,6 +170,7 @@ func (d *state) Read(out []byte) (n int, err error) {
 	for len(out) > 0 {
 		n := copy(out, d.buf)
 		d.buf = d.buf[n:]
+		//fmt.Printf("##### hashed = %x, %x\n", out, out[n:])
 		out = out[n:]
 
 		// Apply the permutation if we've squeezed the sponge dry.

@@ -27,6 +27,7 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+	"reflect"
 
 	"github.com/klaytn/klaytn/common"
 	"github.com/klaytn/klaytn/log"
@@ -130,6 +131,7 @@ func (n rawNode) canUnload(uint16, uint16) bool { panic("this should never end u
 func (n rawNode) cache() (hashNode, bool)       { panic("this should never end up in a live trie") }
 func (n rawNode) fstring(ind string) string     { panic("this should never end up in a live trie") }
 func (n rawNode) lenEncoded() uint16            { panic("this should never end up in a live trie") }
+func (n rawNode) ToPreHashRLP() node 	 	{ panic("this should never end up in a live trie") }
 
 // rawFullNode represents only the useful data content of a full node, with the
 // caches and flags stripped out to minimize its data database. This type honors
@@ -140,6 +142,7 @@ func (n rawFullNode) canUnload(uint16, uint16) bool { panic("this should never e
 func (n rawFullNode) cache() (hashNode, bool)       { panic("this should never end up in a live trie") }
 func (n rawFullNode) fstring(ind string) string     { panic("this should never end up in a live trie") }
 func (n rawFullNode) lenEncoded() uint16            { panic("this should never end up in a live trie") }
+func (n rawFullNode) ToPreHashRLP() node 	 { panic("this should never end up in a live trie") }
 
 func (n rawFullNode) EncodeRLP(w io.Writer) error {
 	var nodes [17]node
@@ -168,6 +171,7 @@ func (n rawShortNode) canUnload(uint16, uint16) bool {
 func (n rawShortNode) cache() (hashNode, bool)   { panic("this should never end up in a live trie") }
 func (n rawShortNode) fstring(ind string) string { panic("this should never end up in a live trie") }
 func (n rawShortNode) lenEncoded() uint16        { panic("this should never end up in a live trie") }
+func (n *rawShortNode) ToPreHashRLP() node 	 { panic("this should never end up in a live trie") }
 
 // cachedNode is all the information we know about a single cached node in the
 // memory database write layer.
@@ -188,12 +192,26 @@ type cachedNode struct {
 func (n *cachedNode) rlp() []byte {
 	if node, ok := n.node.(rawNode); ok {
 		return node
+	}// else if _, ok := n.node.(rawHasnN
+	typeStr := getTypeStr(n.node)
+	if typeStr == "*statedb.rawShortNode" {
+	} else if typeStr == "statedb.rawFullNode" {
+	} else {
+		panic("type function missed")
 	}
+	
+	//fmt.Printf("~~ rlp %s\n", getTypeStr(n.node))
 	blob, err := rlp.EncodeToBytes(n.node)
 	if err != nil {
 		panic(err)
 	}
 	return blob
+}
+
+func getTypeStr(val interface{}) string {
+	return fmt.Sprintf("%v", reflect.ValueOf(val).Type())
+	//rval := reflect.ValueOf(val)
+	//return fmt.Sprintf("~~~~~ encode type = %v, kind = %v\n", rval.Type(), rval.Type().Kind())
 }
 
 // obj returns the decoded and expanded trie node, either directly from the cache,
@@ -318,7 +336,10 @@ func NewDatabaseWithNewCache(diskDB database.DBManager, cacheConfig *TrieNodeCac
 
 	return &Database{
 		diskDB:              diskDB,
-		nodes:               map[common.ExtHash]*cachedNode{{}: {}},
+		//nodes:               map[common.ExtHash]*cachedNode{{}: {}},
+		nodes:               map[common.ExtHash]*cachedNode{common.InitExtHash(): {}},
+		oldest:			common.InitExtHash(),
+		newest:			common.InitExtHash(),
 		preimages:           make(map[common.Hash][]byte),
 		trieNodeCache:       trieNodeCache,
 		trieNodeCacheConfig: cacheConfig,
@@ -331,7 +352,10 @@ func NewDatabaseWithNewCache(diskDB database.DBManager, cacheConfig *TrieNodeCac
 func NewDatabaseWithExistingCache(diskDB database.DBManager, cache TrieNodeCache) *Database {
 	return &Database{
 		diskDB:        diskDB,
-		nodes:         map[common.ExtHash]*cachedNode{{}: {}},
+		//nodes:         map[common.ExtHash]*cachedNode{{}: {}},
+		nodes:         map[common.ExtHash]*cachedNode{common.InitExtHash(): {}},
+		oldest:			common.InitExtHash(),
+		newest:			common.InitExtHash(),
 		preimages:     make(map[common.Hash][]byte),
 		trieNodeCache: cache,
 	}
@@ -388,7 +412,8 @@ func (db *Database) RUnlockGCCachedNode() {
 func (db *Database) NodeChildren(hash common.ExtHash) ([]common.ExtHash, error) {
 	childrenHash := make([]common.ExtHash, 0, 16)
 
-	if (hash == common.ExtHash{}) {
+	//if (hash == common.InitExtHash()) {
+	if (hash.ToHash() == common.Hash{}) {
 		return childrenHash, ErrZeroHashNode
 	}
 
@@ -455,16 +480,25 @@ func (db *Database) insert(hash common.ExtHash, lenEncoded uint16, node node) {
 	db.nodes[hash] = entry
 
 	// Update the flush-list endpoints
-	if db.oldest == (common.ExtHash{}) {
-		db.oldest, db.newest = hash, hash
+	//if db.oldest == (common.InitExtHash()) {
+	if db.oldest.ToHash() == (common.Hash{}) {
+		if hash.ToHash() == (common.Hash{}) {
+			db.oldest, db.newest = common.InitExtHash(), common.InitExtHash()
+		} else {
+			db.oldest, db.newest = hash, hash
+		}
 	} else {
 		if _, ok := db.nodes[db.newest]; !ok {
 			missingNewest := db.newest
 			db.newest = db.getLastNodeHashInFlushList()
-			db.nodes[db.newest].flushNext = common.ExtHash{}
+			db.nodes[db.newest].flushNext = common.InitExtHash()
 			logger.Error("Found a newest node for missingNewest", "oldNewest", missingNewest, "newNewest", db.newest)
 		}
-		db.nodes[db.newest].flushNext, db.newest = hash, hash
+		if hash.ToHash() == (common.Hash{}) {
+			db.nodes[db.newest].flushNext, db.newest = common.InitExtHash(), common.InitExtHash()
+		} else {
+			db.nodes[db.newest].flushNext, db.newest = hash, hash
+		}
 	}
 	db.nodesSize += common.StorageSize(common.ExtHashLength + entry.size)
 }
@@ -495,7 +529,7 @@ func (db *Database) getCachedNode(hash common.ExtHash) []byte {
 
 // setCachedNode stores an encoded node to the trie node cache if enabled.
 func (db *Database) setCachedNode(hash, enc []byte) {
-	fmt.Printf("~~~~ SetC %x\n",hash)
+	//fmt.Printf("~~~~ SetC %x\n",hash)
 	if db.trieNodeCache != nil {
 		db.trieNodeCache.Set(hash, enc)
 		memcacheCleanMissMeter.Mark(1)
@@ -535,7 +569,8 @@ func (db *Database) node(hash common.ExtHash) (n node, fromDB bool) {
 // Node retrieves an encoded cached trie node from memory. If it cannot be found
 // cached, the method queries the persistent database for the content.
 func (db *Database) Node(hash common.ExtHash) ([]byte, error) {
-	if (hash == common.ExtHash{}) {
+	//if (hash == common.InitExtHash()) {
+	if (hash.ToHash() == common.Hash{}) {
 		return nil, ErrZeroHashNode
 	}
 	// Retrieve the node from the trie node cache if available
@@ -562,7 +597,8 @@ func (db *Database) Node(hash common.ExtHash) ([]byte, error) {
 // NodeFromOld retrieves an encoded cached trie node from memory. If it cannot be found
 // cached, the method queries the old persistent database for the content.
 func (db *Database) NodeFromOld(hash common.ExtHash) ([]byte, error) {
-	if (hash == common.ExtHash{}) {
+	//if (hash == common.InitExtHash()) {
+	if (hash.ToHash() == common.Hash{}) {
 		return nil, ErrZeroHashNode
 	}
 	// Retrieve the node from the trie node cache if available
@@ -644,7 +680,8 @@ func (db *Database) Nodes() []common.ExtHash {
 
 	var hashes = make([]common.ExtHash, 0, len(db.nodes))
 	for hash := range db.nodes {
-		if hash != (common.ExtHash{}) { // Special case for "root" references/nodes
+		//if hash != (common.InitExtHash()) { // Special case for "root" references/nodes
+		if hash.ToHash() != (common.Hash{}) { // Special case for "root" references/nodes
 			hashes = append(hashes, hash)
 		}
 	}
@@ -669,7 +706,8 @@ func (db *Database) reference(child common.ExtHash, parent common.ExtHash) {
 	// If the reference already exists, only duplicate for roots
 	if db.nodes[parent].children == nil {
 		db.nodes[parent].children = make(map[common.ExtHash]uint64)
-	} else if _, ok = db.nodes[parent].children[child]; ok && parent != (common.ExtHash{}) {
+	//} else if _, ok = db.nodes[parent].children[child]; ok && parent != (common.InitExtHash()) {
+	} else if _, ok = db.nodes[parent].children[child]; ok && parent.ToHash() != (common.Hash{}) {
 		return
 	}
 	node.parents++
@@ -679,7 +717,8 @@ func (db *Database) reference(child common.ExtHash, parent common.ExtHash) {
 // Dereference removes an existing reference from a root node.
 func (db *Database) Dereference(root common.ExtHash) {
 	// Sanity check to ensure that the meta-root is not removed
-	if common.EmptyExtHash(root) {
+	//if common.EmptyExtHash(root) {
+	if common.EmptyHash(root.ToHash()) {
 		logger.Error("Attempted to dereference the trie cache meta root")
 		return
 	}
@@ -691,7 +730,7 @@ func (db *Database) Dereference(root common.ExtHash) {
 	defer db.lock.Unlock()
 
 	nodes, storage, start := len(db.nodes), db.nodesSize, time.Now()
-	db.dereference(root, common.ExtHash{})
+	db.dereference(root, common.InitExtHash())
 
 	db.gcnodes += uint64(nodes - len(db.nodes))
 	db.gcsize += storage - db.nodesSize
@@ -749,7 +788,7 @@ func (db *Database) Cap(limit common.StorageSize) error {
 	// memory cache during commit but not yet in persistent database). This is ensured
 	// by only uncaching existing data when the database write finalizes.
 	db.lock.RLock()
-	fmt.Printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ caped ~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
+	//fmt.Printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ caped ~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
 
 	nodes, nodeSize, start := len(db.nodes), db.nodesSize, time.Now()
 	preimagesSize := db.preimagesSize
@@ -771,7 +810,8 @@ func (db *Database) Cap(limit common.StorageSize) error {
 	// Keep committing nodes from the flush-list until we're below allowance
 	oldest := db.oldest
 	batch := db.diskDB.NewBatch(database.StateTrieDB)
-	for size > limit && oldest != (common.ExtHash{}) {
+	//for size > limit && oldest != (common.InitExtHash()) {
+	for size > limit && oldest.ToHash() != (common.Hash{}) {
 		// Fetch the oldest referenced node and push into the batch
 		node := db.nodes[oldest]
 		enc := node.rlp()
@@ -814,10 +854,11 @@ func (db *Database) Cap(limit common.StorageSize) error {
 
 		db.nodesSize -= common.StorageSize(common.ExtHashLength + int(node.size))
 	}
-	if db.oldest != (common.ExtHash{}) {
-		db.nodes[db.oldest].flushPrev = common.ExtHash{}
+	//if db.oldest != (common.InitExtHash()) {
+	if db.oldest.ToHash() != (common.Hash{}) {
+		db.nodes[db.oldest].flushPrev = common.InitExtHash()
 	} else {
-		db.newest = common.ExtHash{}
+		db.newest = common.InitExtHash()
 	}
 	db.flushnodes += uint64(nodes - len(db.nodes))
 	db.flushsize += nodeSize - db.nodesSize
@@ -1047,9 +1088,10 @@ func (db *Database) Size() (common.StorageSize, common.StorageSize) {
 // This method is extremely CPU and memory intensive, only use when must.
 func (db *Database) verifyIntegrity() {
 	// Iterate over all the cached nodes and accumulate them into a set
-	reachable := map[common.ExtHash]struct{}{{}: {}}
+	//reachable := map[common.ExtHash]struct{}{{}: {}}
+	reachable := map[common.ExtHash]struct{}{common.InitExtHash(): {}}
 
-	for child := range db.nodes[common.ExtHash{}].children {
+	for child := range db.nodes[common.InitExtHash()].children {
 		db.accumulate(child, reachable)
 	}
 	// Find any unreachable but cached nodes
@@ -1088,22 +1130,38 @@ func (db *Database) removeNodeInFlushList(hash common.ExtHash) {
 	}
 
 	if hash == db.oldest && hash == db.newest {
-		db.oldest = common.ExtHash{}
-		db.newest = common.ExtHash{}
+		db.oldest = common.InitExtHash()
+		db.newest = common.InitExtHash()
 	} else if hash == db.oldest {
 		db.oldest = node.flushNext
-		db.nodes[node.flushNext].flushPrev = common.ExtHash{}
+		db.nodes[node.flushNext].flushPrev = common.InitExtHash()
 	} else if hash == db.newest {
 		db.newest = node.flushPrev
-		db.nodes[node.flushPrev].flushNext = common.ExtHash{}
+		db.nodes[node.flushPrev].flushNext = common.InitExtHash()
 	} else {
 		db.nodes[node.flushPrev].flushNext = node.flushNext
 		db.nodes[node.flushNext].flushPrev = node.flushPrev
 	}
+	/*
+	if hash.ToHash() == db.oldest.ToHash() && hash.ToHash() == db.newest.ToHash() {
+		db.oldest = common.InitExtHash()
+		db.newest = common.InitExtHash()
+	} else if hash.ToHash() == db.oldest.ToHash() {
+		db.oldest = node.flushNext
+		db.nodes[node.flushNext].flushPrev = common.InitExtHash()
+	} else if hash.ToHash() == db.newest.ToHash() {
+		db.newest = node.flushPrev
+		db.nodes[node.flushPrev].flushNext = common.InitExtHash()
+	} else {
+		db.nodes[node.flushPrev].flushNext = node.flushNext
+		db.nodes[node.flushNext].flushPrev = node.flushPrev
+	}
+	*/
 }
 
 func (db *Database) getLastNodeHashInFlushList() common.ExtHash {
 	var lastNodeHash common.ExtHash
+	lastNodeHash = common.InitExtHash()
 	nodeHash := db.oldest
 	for {
 		if _, ok := db.nodes[nodeHash]; ok {
@@ -1113,7 +1171,8 @@ func (db *Database) getLastNodeHashInFlushList() common.ExtHash {
 			break
 		}
 
-		if db.nodes[nodeHash].flushNext != (common.ExtHash{}) {
+		//if db.nodes[nodeHash].flushNext != (common.InitExtHash()) {
+		if db.nodes[nodeHash].flushNext.ToHash() != (common.Hash{}) {
 			nodeHash = db.nodes[nodeHash].flushNext
 		} else {
 			logger.Debug("found last noode in map of flush list")

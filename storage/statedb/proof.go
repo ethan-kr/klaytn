@@ -77,7 +77,9 @@ func (t *Trie) Prove(key []byte, fromLevel uint, proofDB database.DBManager) err
 		// Don't bother checking for errors here since hasher panics
 		// if encoding doesn't work and we're not writing to any database.
 		n, _ = hasher.hashChildren(n, nil)
-		hn, _ := hasher.store(n, nil, false)
+		//Ethan
+		//hn, _ := hasher.store(n, nil, false, false)
+		hn, _, _ := hasher.store(n, nil, false, false)
 		if hash, ok := hn.(hashNode); ok || i == 0 {
 			// If the node's database encoding is a hash (or is the
 			// root node), it becomes a proof element.
@@ -85,8 +87,10 @@ func (t *Trie) Prove(key []byte, fromLevel uint, proofDB database.DBManager) err
 				fromLevel--
 			} else {
 				enc, _ := rlp.EncodeToBytes(n)
+				fmt.Printf("~~~~~ hash??? data = %x\n",enc)
 				if !ok {
 					hash = crypto.Keccak256(enc)
+					//fmt.Printf("~~~~~ hash2= %v, data = %x, ext = nil\n", hash, enc)
 				}
 				proofDB.WriteMerkleProof(hash, enc)
 			}
@@ -490,7 +494,7 @@ func VerifyRangeProof(rootHash common.ExtHash, firstKey []byte, lastKey []byte, 
 	// Special case, there is no edge proof at all. The given range is expected
 	// to be the whole leaf-set in the trie.
 	if proof == nil {
-		tr, _ := NewTrie(common.ExtHash{}, NewDatabase(database.NewMemoryDBManager()))
+		tr, _ := NewTrie(common.InitExtHash(), NewDatabase(database.NewMemoryDBManager()))
 		for index, key := range keys {
 			tr.TryUpdate(key, values[index])
 		}

@@ -70,6 +70,26 @@ type Header struct {
 	Vote       []byte `json:"voteData,omitempty"`
 }
 
+type HeaderV19 struct {
+	ParentHash  common.Hash    `json:"parentHash"       gencodec:"required"`
+	Rewardbase  common.Address `json:"reward"           gencodec:"required"`
+	Root        common.Hash    `json:"stateRoot"        gencodec:"required"`
+	TxHash      common.Hash    `json:"transactionsRoot" gencodec:"required"`
+	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
+	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
+	BlockScore  *big.Int       `json:"blockScore"       gencodec:"required"`
+	Number      *big.Int       `json:"number"           gencodec:"required"`
+	GasUsed     uint64         `json:"gasUsed"          gencodec:"required"`
+	Time        *big.Int       `json:"timestamp"        gencodec:"required"`
+	// TimeFoS represents a fraction of a second since `Time`.
+	TimeFoS    uint8  `json:"timestampFoS"              gencodec:"required"`
+	Extra      []byte `json:"extraData"                 gencodec:"required"`
+	Governance []byte `json:"governanceData"            gencodec:"required"`
+	Vote       []byte `json:"voteData,omitempty"`
+
+	BaseFee *big.Int `json:"baseFeePerGas,omitempty"    `
+}
+
 // field type overrides for gencodec
 type headerMarshaling struct {
 	BlockScore *hexutil.Big
@@ -129,6 +149,7 @@ func rlpHash(x interface{}) (h common.Hash) {
 	hw := sha3.NewKeccak256()
 	rlp.Encode(hw, x)
 	hw.Sum(h[:0])
+	//fmt.Printf("~~~~~ hash41= %x, data = %v\n", h, hw)
 	return h
 }
 
@@ -140,6 +161,7 @@ func prefixedRlpHash(prefix byte, x interface{}) (h common.Hash) {
 	hw.Write([]byte{prefix})
 	rlp.Encode(hw, x)
 	hw.Sum(h[:0])
+	//fmt.Printf("~~~~~ hash42= %x, data = %v\n", h, hw)
 	return h
 }
 
@@ -186,6 +208,11 @@ type Result struct {
 // extblock represents external block encoding used for Klaytn protocol, etc.
 type extblock struct {
 	Header *Header
+	Txs    []*Transaction
+}
+
+type extblockV19 struct {
+	Header *HeaderV19
 	Txs    []*Transaction
 }
 
@@ -252,14 +279,50 @@ func CopyHeader(h *Header) *Header {
 	return &cpy
 }
 
+func CopyHeaderV19(h *HeaderV19) *Header {
+	cpy := Header{
+		ParentHash:	h.ParentHash,
+		Rewardbase:	h.Rewardbase,
+		Root:		h.Root,
+		TxHash:		h.TxHash,
+		ReceiptHash:	h.ReceiptHash,
+		Bloom:		h.Bloom,
+		GasUsed:	h.GasUsed,
+		TimeFoS:	h.TimeFoS,
+	}
+	
+	if cpy.Time = new(big.Int); h.Time != nil {
+		cpy.Time.Set(h.Time)
+	}
+	if cpy.BlockScore = new(big.Int); h.BlockScore != nil {
+		cpy.BlockScore.Set(h.BlockScore)
+	}
+	if cpy.Number = new(big.Int); h.Number != nil {
+		cpy.Number.Set(h.Number)
+	}
+	if len(h.Extra) > 0 {
+		cpy.Extra = make([]byte, len(h.Extra))
+		copy(cpy.Extra, h.Extra)
+	}
+	if len(h.Governance) > 0 {
+		cpy.Governance = make([]byte, len(h.Governance))
+		copy(cpy.Governance, h.Governance)
+	}
+	if len(h.Vote) > 0 {
+		cpy.Vote = make([]byte, len(h.Vote))
+		copy(cpy.Vote, h.Vote)
+	}
+	return &cpy
+}
+
 // DecodeRLP decodes the Klaytn
 func (b *Block) DecodeRLP(s *rlp.Stream) error {
-	var eb extblock
+	var eb extblockV19
 	_, size, _ := s.Kind()
 	if err := s.Decode(&eb); err != nil {
 		return err
 	}
-	b.header, b.transactions = eb.Header, eb.Txs
+	b.header, b.transactions = CopyHeaderV19(eb.Header), eb.Txs
 	b.size.Store(common.StorageSize(rlp.ListSize(size)))
 	return nil
 }
@@ -355,6 +418,7 @@ func (b *Block) Hash() common.Hash {
 	}
 	v := b.header.Hash()
 	b.hash.Store(v)
+	//fmt.Printf("~~~~~ hash43= %v, data = %v\n", v, b.header)
 	return v
 }
 
