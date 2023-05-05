@@ -49,7 +49,7 @@ type Dump struct {
 
 func (self *StateDB) RawDump() Dump {
 	dump := Dump{
-		Root:     fmt.Sprintf("%x", self.trie.Hash().ToHash()),
+		Root:     fmt.Sprintf("%x", self.trie.RootHash().ToHash()),
 		Accounts: make(map[string]DumpAccount),
 	}
 

@@ -63,6 +63,6 @@ func NewStateSync(root common.Hash, database statedb.StateTrieReadDB, bloom *sta
 		}
 		return nil
 	}
-	syncer = statedb.NewTrieSync(root.ToRootExtHash(), database, onAccount, bloom, lruCache)
+	syncer = statedb.NewTrieSync(root.ToExtHash(), database, onAccount, bloom, lruCache)
 	return syncer
 }

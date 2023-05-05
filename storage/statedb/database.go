@@ -236,7 +236,7 @@ func gatherChildren(n node, children *[]common.ExtHash) {
 			gatherChildren(n[i], children)
 		}
 	case hashNode:
-		*children = append(*children, common.BytesToRootExtHash(n))
+		*children = append(*children, common.BytesToExtHash(n))
 
 	case valueNode, nil, rawNode:
 
@@ -422,7 +422,7 @@ func (db *Database) NodeChildren(hash common.ExtHash) ([]common.ExtHash, error) 
 	for _, child := range children {
 		n, ok := child.(hashNode)
 		if ok {
-			hash := common.BytesToRootExtHash(n)
+			hash := common.BytesToExtHash(n)
 			childrenHash = append(childrenHash, hash)
 		}
 	}
@@ -910,9 +910,15 @@ func (db *Database) writeBatchNodes(node common.ExtHash) error {
 	}
 
 	enc := rootNode.rlp()
-	enc, _ = common.RlpPaddingFilter(enc)
-	if err := batch.Put(node.ToHash().Bytes(), enc); err != nil {
-		return err
+	if common.ExtHashDisableFlag {
+		enc, _ = common.RlpPaddingFilter(enc)
+		if err := batch.Put(node.ToHash().Bytes(), enc); err != nil {
+			return err
+		}
+	} else {
+		if err := batch.Put(node.Bytes(), enc); err != nil {
+			return err
+		}
 	}
 	if err := batch.Write(); err != nil {
 		logger.Error("Failed to write trie to disk", "err", err)
@@ -999,8 +1005,10 @@ func (db *Database) commit(hash common.ExtHash, resultCh chan<- commitResult) {
 		db.commit(child, resultCh)
 	}
 	enc := node.rlp()
-	enc, _ = common.RlpPaddingFilter(enc)
-	resultCh <- commitResult{hash.ToHash().Bytes(), enc}
+	if common.ExtHashDisableFlag {
+		enc, _ = common.RlpPaddingFilter(enc)
+	}
+	resultCh <- commitResult{hash[:], enc}
 
 	if db.trieNodeCache != nil {
 		db.trieNodeCache.Set(hash[:], enc)
@@ -1249,7 +1257,7 @@ func NodeTrace(db *Database, hash common.ExtHash, flag int) (reHash common.ExtHa
 				break
 			}
 			if tmpHashNode, ok := child.(hashNode); ok {
-				tmpNode.Children[idx] = toHashNode(NodeTrace(db, common.BytesToRootExtHash(tmpHashNode.Bytes()), flag).Bytes())
+				tmpNode.Children[idx] = toHashNode(NodeTrace(db, common.BytesToExtHash(tmpHashNode.Bytes()), flag).Bytes())
 			} else {
 				tmpNode.Children[idx] = child
 			}

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -27,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/dgraph-io/badger"
 	"github.com/klaytn/klaytn/blockchain/types"
@@ -42,8 +44,12 @@ var (
 	logger = log.NewModuleLogger(log.StorageDatabase)
 
 	errGovIdxAlreadyExist = errors.New("a governance idx of the more recent or the same block exist")
+	ProcBlockNum          = int32(0)
+	dbOnce                sync.Once
+	ethanDbm              DBManager
 	HeadBlockQ            backupHashQueue
 	FastBlockQ            backupHashQueue
+	LogFlag               bool = false
 )
 
 type DBManager interface {
@@ -67,6 +73,7 @@ type DBManager interface {
 	GetStateTrieMigrationDB() Database
 	GetMiscDB() Database
 	GetSnapshotDB() Database
+	GetDelqDB() Database
 
 	// from accessors_chain.go
 	ReadCanonicalHash(number uint64) common.Hash
@@ -303,6 +310,7 @@ const (
 	TxLookUpEntryDB
 	bridgeServiceDB
 	SnapshotDB
+	DelqDB
 	// databaseEntryTypeSize should be the last item in this list!!
 	databaseEntryTypeSize
 )
@@ -344,6 +352,7 @@ var dbBaseDirs = [databaseEntryTypeSize]string{
 	"txlookup",
 	"bridgeservice",
 	"snapshot",
+	"dele_q",
 }
 
 // Sum of dbConfigRatio should be 100.
@@ -357,7 +366,8 @@ var dbConfigRatio = [databaseEntryTypeSize]int{
 	37, // StateTrieMigrationDB
 	2,  // TXLookUpEntryDB
 	1,  // bridgeServiceDB
-	3,  // SnapshotDB
+	2,  // SnapshotDB
+	1,  // dele_q
 }
 
 // checkDBEntryConfigRatio checks if sum of dbConfigRatio is 100.
@@ -843,6 +853,10 @@ func (dbm *databaseManager) GetMemDB() *MemDB {
 	}
 	logger.Error("GetMemDB() call to non memory DBManager object.")
 	return nil
+}
+
+func (dbm *databaseManager) GetDelqDB() Database {
+	return dbm.getDatabase(DelqDB)
 }
 
 // GetDBConfig returns DBConfig of the DB manager.
@@ -1680,6 +1694,7 @@ func (dbm *databaseManager) ReadCode(hash common.ExtHash) []byte {
 	// TODO-Klaytn-Snapsync change the order when we forcibly upgrade the code scheme with snapshot.
 	db := dbm.getDatabase(StateTrieDB)
 	if data, _ := db.Get(hash.ToHash().Bytes()); len(data) > 0 { // GetNilData
+		//if data, _ := db.Get(hash.ToHash().Bytes()); data != nil { // GetNilData
 		return data
 	}
 
@@ -2837,4 +2852,152 @@ func deleteSnapshotRecoveryNumber(db KeyValueWriter) {
 	if err := db.Delete(snapshotRecoveryKey); err != nil {
 		logger.Crit("Failed to remove snapshot recovery number", "err", err)
 	}
+}
+
+func DeleteStateDBProcNum(blockNum uint64) {
+	if blockNum > 86400*2+100 { // 172800
+		go DeleteBlockByNum(blockNum - (86400*2 + 100))
+	}
+	ProcBlockNum = int32(blockNum)
+}
+
+func DeleteStateDBKey(dbm DBManager, key []byte, pos int) error {
+	if dbm == nil {
+		return nil
+	}
+	if !common.DelHashFlag {
+		return nil
+	} else {
+		var tmpVal [4]byte
+
+		dbOnce.Do(func() {
+			ethanDbm = dbm
+			go DeleteStateDBProc(dbm)
+		})
+
+		if ProcBlockNum <= 0 {
+			//fmt.Printf("deletereq err = %x, delpos = %d, delq_bnum=%d\n", key, pos, ProcBlockNum)
+			return nil
+		}
+		delq := dbm.GetDelqDB()
+		binary.LittleEndian.PutUint32(tmpVal[:], uint32(ProcBlockNum))
+		err := delq.Put(key[:], tmpVal[:])
+		if err != nil {
+			logger.Warn("Failed to delete key put queue", "err", err, "key", key)
+		}
+		//fmt.Printf("deletereq err = %x, delpos = %d, delq_bnum=%d\n", key, pos, ProcBlockNum)
+		return err
+	}
+}
+
+func DeleteStateDBProc(dbm DBManager) {
+	delq := dbm.GetDelqDB()
+	statedb := dbm.GetStateTrieDB()
+
+	rootdel := 4
+	// 0 : RootExtHash만 지우지 않을때
+	// 1 : RootExtHash도 지우고 싶을때
+	// 2 : RootExtHash를 86400블럭 +-5 블럭은 나중에 지우고,  ExtHash는 정상 삭제
+	// 3 : 86400블럭 +-500 블럭은 나중에 지우고,  나머지는 정상 삭제
+	// 4 : 86400블럭 +500 블럭은 이전 데이터만 삭제
+	for {
+		time.Sleep(time.Second * 1)
+
+		iter := delq.NewIterator(nil, nil)
+		for iter.Next() {
+			blockNum := int32(binary.LittleEndian.Uint32(iter.Value()))
+			if rootdel != 4 && blockNum < ProcBlockNum-1000 {
+				// if blockNum < ProcBlockNum - 86500 {
+				if rootdel == 0 && len(iter.Key()) == common.ExtHashLength && fmt.Sprintf("%x", iter.Key()[32:]) == "00000000ffff0000" {
+					err2 := delq.Delete(iter.Key())
+					fmt.Printf("deletekey = %x, delq_bnum=%d, delq_err=%v\n", iter.Key(), ProcBlockNum, err2)
+				} else if rootdel == 2 {
+					// if ProcBlockNum > 4147150 && len(iter.Key()) == common.ExtHashLength && fmt.Sprintf("%x", iter.Key()[32:]) == "00000000ffff0000" {
+					if len(iter.Key()) == common.ExtHashLength && fmt.Sprintf("%x", iter.Key()[32:]) == "00000000ffff0000" {
+						remainNum := blockNum % 86400
+						// if blockNum > ProcBlockNum - 86405 || (remainNum < 5 || remainNum > 86395) {
+						if blockNum > ProcBlockNum-86405 || (remainNum < 2 || remainNum > 86398) {
+							continue
+						}
+					}
+					err1 := statedb.Delete(iter.Key())
+					err2 := delq.Delete(iter.Key())
+					fmt.Printf("deletekey = %x, delq_bnum=%d, state_err=%v, delq_err=%v\n", iter.Key(), ProcBlockNum, err1, err2)
+				} else if rootdel == 3 {
+					if len(iter.Key()) == common.ExtHashLength {
+						remainNum := blockNum % 86400
+						//if blockNum > ProcBlockNum - 86900 || (remainNum < 500 || remainNum > 85900) {
+						//if blockNum < ProcBlockNum - 86400 - 50 {
+						//} else if remainNum < 50 || remainNum > 86350 {
+						if blockNum < ProcBlockNum-86400-500 {
+						} else if remainNum < 5 || remainNum > 86395 {
+							continue
+						}
+					}
+					// err1 := statedb.Delete(iter.Key())
+					// err2 := delq.Delete(iter.Key())
+					statedb.Delete(iter.Key())
+					delq.Delete(iter.Key())
+					// fmt.Printf("deletekey = %x, delq_bnum=%d/%d, state_err=%v, delq_err=%v\n", iter.Key(), blockNum, ProcBlockNum, err1, err2)
+				} else {
+					err1 := statedb.Delete(iter.Key())
+					err2 := delq.Delete(iter.Key())
+					fmt.Printf("deletekey = %x, delq_bnum=%d, state_err=%v, delq_err=%v\n", iter.Key(), ProcBlockNum, err1, err2)
+				}
+			} else if blockNum < ProcBlockNum-86400-500 {
+				// err1 := statedb.Delete(iter.Key())
+				// err2 := delq.Delete(iter.Key())
+				// fmt.Printf("deletekey = %x, delq_bnum=%d, state_err=%v, delq_err=%v\n", iter.Key(), ProcBlockNum, err1, err2)
+				keyLen := len(iter.Key())
+				if keyLen > 8 && !bytes.Equal(iter.Key()[keyLen-common.ExtPadLength:], common.LegacyByte) {
+					statedb.Delete(iter.Key())
+					//fmt.Printf("deletekey = %x, delq_bnum=%d\n", iter.Key(), ProcBlockNum)
+				}
+				delq.Delete(iter.Key())
+			}
+
+		}
+		iter.Release()
+	}
+}
+
+func DeleteBlockByNum(number uint64) {
+	dbm := ethanDbm
+
+	block := dbm.ReadBlockByNumber(number)
+	if block == nil {
+		return
+	}
+	hash := dbm.ReadCanonicalHash(number)
+
+	db := dbm.getDatabase(BodyDB)
+	db.Delete(blockBodyKey(number, hash))
+	// fmt.Printf("deletekey = %x, number = %d, body\n", blockBodyKey(number, hash), number)
+
+	if block != nil {
+		db = dbm.getDatabase(TxLookUpEntryDB)
+		for _, tx := range block.Transactions() {
+			db.Delete(TxLookupKey(tx.Hash()))
+			// fmt.Printf("deletekey = %x, number = %d, txlookup\n", TxLookupKey(tx.Hash()), number)
+		}
+	}
+
+	db = dbm.getDatabase(ReceiptsDB)
+	db.Delete(blockReceiptsKey(number, hash))
+	// fmt.Printf("deletekey = %x, number = %d, receipt\n", blockReceiptsKey(number, hash), number)
+
+	db = dbm.getDatabase(headerDB)
+	db.Delete(headerKey(number, hash))
+	// fmt.Printf("deletekey = %x, number = %d, headerkey\n", headerKey(number, hash), number)
+	db.Delete(headerNumberKey(hash))
+	// fmt.Printf("deletekey = %x, number = %d, headerNumberkey\n", headerNumberKey(hash), number)
+}
+
+func GetData(dbm DBManager, key []byte) ([]byte, error) {
+	db := dbm.GetStateTrieDB()
+	value, err := db.Get(key[:])
+	if err != nil {
+		logger.Warn("Failed to get statetrie by key", "err", err, "key", key)
+	}
+	return value, err
 }

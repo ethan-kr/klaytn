@@ -441,7 +441,7 @@ func (dl *diskLayer) generateRange(root common.Hash, prefix []byte, kind string,
 		for i, key := range result.keys {
 			snapTrie.Update(key, result.vals[i])
 		}
-		root, _ := snapTrie.Commit(nil)
+		root, _ := snapTrie.Commit(nil, true)
 		// TODO-Klaytn update proper block number
 		snapTrieDb.Commit(root, false, 0)
 	}
@@ -617,8 +617,11 @@ func (dl *diskLayer) generate(stats *generatorStats) {
 			snapAccountWriteCounter.Inc(time.Since(start).Nanoseconds())
 			return nil
 		}
-		serializer := account.NewAccountLHSerializer()
-		if err := rlp.DecodeBytes(val, serializer); err != nil {
+		serializer := account.NewAccountSerializer()
+		serializerLH := account.NewAccountLHSerializer()
+		if err := rlp.DecodeBytes(val, serializerLH); err == nil {
+			serializer = serializerLH.TransCopy()
+		} else if err := rlp.DecodeBytes(val, serializer); err != nil {
 			logger.Crit("Invalid account encountered during snapshot creation", "err", err)
 		}
 		acc := serializer.GetAccount()
@@ -646,7 +649,8 @@ func (dl *diskLayer) generate(stats *generatorStats) {
 		}
 		// If the iterated account is the contract, create a further loop to
 		// verify or regenerate the contract storage.
-		contractAcc, ok := acc.(*account.SmartContractAccountLH)
+		contractAcc, ok := acc.(*account.SmartContractAccount)
+		//contractAcc, ok := acc.(*account.SmartContractAccountLH)	// 2023.0505 CheckThis
 		if !ok {
 			// If the root is empty, we still need to ensure that any previous snapshot
 			// storage values are cleared
@@ -665,7 +669,7 @@ func (dl *diskLayer) generate(stats *generatorStats) {
 		}
 
 		rootHash := contractAcc.GetStorageRoot()
-		if rootHash == emptyRoot {
+		if rootHash.ToHash() == emptyRoot {
 			prefix := append(database.SnapshotStoragePrefix, accountHash.Bytes()...)
 			keyLen := len(database.SnapshotStoragePrefix) + 2*common.HashLength
 			if err := wipeKeyRange(dl.diskdb, "storage", prefix, nil, nil, keyLen, snapWipedStorageMeter, false); err != nil {
@@ -706,7 +710,7 @@ func (dl *diskLayer) generate(stats *generatorStats) {
 			}
 			storeOrigin := common.CopyBytes(storeMarker)
 			for {
-				exhausted, last, err := dl.generateRange(rootHash, append(database.SnapshotStoragePrefix, accountHash.Bytes()...), "storage", storeOrigin, storageCheckRange, stats, onStorage, nil)
+				exhausted, last, err := dl.generateRange(rootHash.ToHash(), append(database.SnapshotStoragePrefix, accountHash.Bytes()...), "storage", storeOrigin, storageCheckRange, stats, onStorage, nil)
 				if err != nil {
 					return err
 				}

@@ -1004,7 +1004,7 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.ExtHash {
 	if EnabledExpensive {
 		defer func(start time.Time) { s.AccountHashes += time.Since(start) }(time.Now())
 	}
-	return s.trie.Hash()
+	return s.trie.RootHash()
 }
 
 // Prepare sets the current transaction hash and index and block hash which is
@@ -1091,7 +1091,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root common.ExtHash, err erro
 			}
 		}
 		return nil
-	})
+	}, true)
 
 	// If snapshotting is enabled, update the snapshot tree with this new version
 	if s.snap != nil {

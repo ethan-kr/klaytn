@@ -1854,7 +1854,7 @@ func (s *Syncer) processBytecodeResponse(res *bytecodeResponse) {
 		}
 		// Push the bytecode into a database batch
 		codes++
-		if err := batch.Put(database.CodeKey(hash.ToRootExtHash()), code); err != nil {
+		if err := batch.Put(database.CodeKey(hash.ToExtHash()), code); err != nil {
 			logger.Crit("Failed to store contract code", "err", err)
 		}
 	}
@@ -2018,7 +2018,7 @@ func (s *Syncer) processStorageResponse(res *storageResponse) {
 			for j := 0; j < len(res.hashes[i]); j++ {
 				tr.Update(res.hashes[i][j][:], res.slots[i][j])
 			}
-			root, _ := tr.Commit(nil)
+			root, _ := tr.Commit(nil, true)
 			_, nodeSize, _ := db.Size()
 			if err := db.Commit(root, false, 0); err != nil {
 				logger.Error("Failed to persist storage slots", "err", err)
@@ -2043,7 +2043,7 @@ func (s *Syncer) processStorageResponse(res *storageResponse) {
 	// Large contracts could have generated new trie nodes, flush them to disk
 	if res.subTask != nil {
 		if res.subTask.done {
-			root, _ := res.subTask.genTrie.Commit(nil)
+			root, _ := res.subTask.genTrie.Commit(nil, true)
 			_, nodeSize, _ := res.subTask.trieDb.Size()
 
 			if err := res.subTask.trieDb.Commit(root, false, 0); err != nil {
@@ -2092,7 +2092,7 @@ func (s *Syncer) processTrienodeHealResponse(res *trienodeHealResponse) {
 		s.trienodeHealSynced++
 		s.trienodeHealBytes += common.StorageSize(len(node))
 
-		err := s.healer.scheduler.Process(statedb.SyncResult{Hash: hash.ToRootExtHash(), Data: node})
+		err := s.healer.scheduler.Process(statedb.SyncResult{Hash: hash.ToExtHash(), Data: node})
 		switch err {
 		case nil:
 		case statedb.ErrAlreadyProcessed:
@@ -2128,7 +2128,7 @@ func (s *Syncer) processBytecodeHealResponse(res *bytecodeHealResponse) {
 		s.bytecodeHealSynced++
 		s.bytecodeHealBytes += common.StorageSize(len(node))
 
-		err := s.healer.scheduler.Process(statedb.SyncResult{Hash: hash.ToRootExtHash(), Data: node})
+		err := s.healer.scheduler.Process(statedb.SyncResult{Hash: hash.ToExtHash(), Data: node})
 		switch err {
 		case nil:
 		case statedb.ErrAlreadyProcessed:
@@ -2205,7 +2205,7 @@ func (s *Syncer) forwardAccountTask(task *accountTask) {
 	// flush after finalizing task.done. It's fine even if we crash and lose this
 	// write as it will only cause more data to be downloaded during heal.
 	if task.done {
-		root, _ := task.genTrie.Commit(nil)
+		root, _ := task.genTrie.Commit(nil, true)
 		_, nodeSize, _ := task.trieDb.Size()
 
 		if err := task.trieDb.Commit(root, false, 0); err != nil {

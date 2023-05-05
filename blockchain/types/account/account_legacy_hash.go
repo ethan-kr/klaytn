@@ -31,7 +31,7 @@ import (
 
 // all code decode for legacy hash ( 32 byte hash )
 
-//account.go
+// account.go
 //
 // NewAccountLHWithType creates an Account object with the given type.
 func NewAccountLHWithType(t AccountType) (AccountLH, error) {
@@ -100,7 +100,7 @@ type AccountLH interface {
 	String() string
 }
 
-//account_serializer.go
+// account_serializer.go
 //
 // AccountSerializer serializes an Account object using RLP/JSON.
 type AccountLHSerializer struct {

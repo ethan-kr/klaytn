@@ -34,8 +34,8 @@ import (
 // storage root and code hash.
 type SmartContractAccount struct {
 	*AccountCommon
-	storageRoot common.ExtHash // merkle root of the storage trie
-	codeHash    common.ExtHash
+	storageRoot common.ExtHash  // merkle root of the storage trie
+	codeHash    common.ExtHash  // Don't change to common.Hash - Use ExtHash type in iterator, Reference
 	codeInfo    params.CodeInfo // consists of two information, vmVersion and codeFormat
 }
 

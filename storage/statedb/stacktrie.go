@@ -484,7 +484,7 @@ func (st *StackTrie) Hash() (h common.Hash) {
 		h.sha.Read(ret)
 		return common.BytesToHash(ret)
 	}
-	return common.BytesToRootExtHash(st.val).ToHash()
+	return common.BytesToExtHash(st.val).ToHash()
 }
 
 // Commit will firstly hash the entrie trie if it's still not hashed
@@ -512,5 +512,5 @@ func (st *StackTrie) Commit() (common.Hash, error) {
 		st.db.GetStateTrieDB().Put(ret, st.val)
 		return common.BytesToHash(ret), nil
 	}
-	return common.BytesToRootExtHash(st.val).ToHash(), nil
+	return common.BytesToExtHash(st.val).ToHash(), nil
 }

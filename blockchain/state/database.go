@@ -96,9 +96,10 @@ type Trie interface {
 	// Hash returns the root hash of the trie. It does not write to the database and
 	// can be used even if the trie doesn't have one.
 	Hash() common.ExtHash
+	RootHash() common.ExtHash
 	// Commit writes all nodes to the trie's memory database, tracking the internal
 	// and external (for account tries) references.
-	Commit(onleaf statedb.LeafCallback) (common.ExtHash, error)
+	Commit(onleaf statedb.LeafCallback, extRootFlag bool) (common.ExtHash, error)
 	// NodeIterator returns an iterator that returns nodes of the trie. Iteration
 	// starts at the key after the given start key.
 	NodeIterator(startKey []byte) statedb.NodeIterator
@@ -200,6 +201,7 @@ func (db *cachingDB) ContractCode(codeHash common.ExtHash) ([]byte, error) {
 	}
 	code := db.db.DiskDB().ReadCode(codeHash)
 	if len(code) > 0 { // GetNilData
+		//if code != nil { // GetNilData
 		db.codeCache.Set(codeHash.ToHash().Bytes(), code)
 		db.codeSizeCache.Add(codeHash.ToHash(), len(code))
 		return code, nil
@@ -222,6 +224,7 @@ func (db *cachingDB) ContractCodeWithPrefix(codeHash common.ExtHash) ([]byte, er
 	}
 	code := db.db.DiskDB().ReadCodeWithPrefix(codeHash)
 	if len(code) > 0 { // GetNilData
+		//if code != nil { // GetNilData
 		db.codeCache.Set(codeHash.ToHash().Bytes(), code)
 		db.codeSizeCache.Add(codeHash.ToHash(), len(code))
 		return code, nil

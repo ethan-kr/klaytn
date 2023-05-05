@@ -411,7 +411,7 @@ func (self *stateObject) CommitStorageTrie(db Database) error {
 		defer func(start time.Time) { self.db.StorageCommits += time.Since(start) }(time.Now())
 	}
 	if acc := account.GetProgramAccount(self.account); acc != nil {
-		root, err := self.storageTrie.Commit(nil)
+		root, err := self.storageTrie.Commit(nil, false)
 		if err != nil {
 			return err
 		}

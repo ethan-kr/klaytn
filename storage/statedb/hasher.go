@@ -95,14 +95,14 @@ func (h *hasher) hash(n node, db *Database, force bool) (node, node) {
 	}
 	// Trie not processed yet or needs storage, walk the children
 	collapsed, cached := h.hashChildren(n, db)
-	hashed, lenEncoded, extHashed := h.store(collapsed, db, force)
+	hashed, lenEncoded, extHashed := h.store(collapsed, db, force, false)
 	// Cache the hash of the node for later reuse and remove
 	// the dirty flag in commit mode. It's fine to assign these values directly
 	// without copying the node first because hashChildren copies it.
 	extCachedHash := extHashed.Bytes()
 	cachedHash, ok := hashed.(hashNode)
 	if extHashed.ToHash() == (common.Hash{}) && ok {
-		extCachedHash = common.BytesToRootExtHash(cachedHash.Bytes()).Bytes()
+		extCachedHash = common.BytesToExtHash(cachedHash.Bytes()).Bytes()
 	}
 	switch cn := cached.(type) {
 	case *shortNode:
@@ -144,7 +144,7 @@ func (h *hasher) hash(n node, db *Database, force bool) (node, node) {
 	}
 }
 
-func (h *hasher) hashRoot(n node, db *Database, force bool) (node, node) {
+func (h *hasher) hashRoot(n node, db *Database, force bool, extRootFlag bool) (node, node) {
 	// If we're not storing the node, just hashing, use available cached data
 	if hash, dirty := n.cache(); hash != nil {
 		if db == nil {
@@ -161,14 +161,18 @@ func (h *hasher) hashRoot(n node, db *Database, force bool) (node, node) {
 	}
 	// Trie not processed yet or needs storage, walk the children
 	collapsed, cached := h.hashChildrenFromRoot(n, db)
-	hashed, lenEncoded, extHashed := h.store(collapsed, db, force)
+	hashed, lenEncoded, extHashed := h.store(collapsed, db, force, extRootFlag)
 	// Cache the hash of the node for later reuse and remove
 	// the dirty flag in commit mode. It's fine to assign these values directly
 	// without copying the node first because hashChildren copies it.
 	extCachedHash := extHashed.Bytes()
 	cachedHash, ok := hashed.(hashNode)
 	if extHashed.ToHash() == (common.Hash{}) && ok {
-		extCachedHash = common.BytesToRootExtHash(cachedHash.Bytes()).Bytes()
+		if extRootFlag {
+			extCachedHash = common.BytesToRootExtHash(cachedHash.Bytes()).Bytes()
+		} else {
+			extCachedHash = common.BytesToExtHash(cachedHash.Bytes()).Bytes()
+		}
 	}
 	switch cn := cached.(type) {
 	case *shortNode:
@@ -309,7 +313,7 @@ func ExtHashFilter(n node, src_rlp sliceBuffer) (reData sliceBuffer) {
 // store hashes the node n and if we have a storage layer specified, it writes
 // the key/value pair to it and tracks any node->child references as well as any
 // node->external trie references.
-func (h *hasher) store(n node, db *Database, force bool) (node, uint16, common.ExtHash) {
+func (h *hasher) store(n node, db *Database, force, rootFlag bool) (node, uint16, common.ExtHash) {
 	var tmpHash common.ExtHash
 
 	// Don't store hashes or empty nodes.
@@ -324,7 +328,9 @@ func (h *hasher) store(n node, db *Database, force bool) (node, uint16, common.E
 		if err := rlp.Encode(&h.tmp, n); err != nil {
 			panic("encode error: " + err.Error())
 		}
-		h.tmp = ExtHashFilter(n, h.tmp)
+		if common.ExtHashDisableFlag {
+			h.tmp = ExtHashFilter(n, h.tmp)
+		}
 
 		lenEncoded = uint16(len(h.tmp))
 	}
@@ -332,11 +338,19 @@ func (h *hasher) store(n node, db *Database, force bool) (node, uint16, common.E
 		return n, lenEncoded, tmpHash // Nodes smaller than 32 bytes are stored inside their parent
 	}
 	if hash == nil {
-		hash = h.makeHashNode(h.tmp)
+		if common.ExtHashDisableFlag {
+			hash = h.makeHashNode(h.tmp)
+		} else {
+			hash = h.makeHashNode(ExtHashFilter(n, h.tmp))
+		}
 	}
 	if db != nil {
 		// We are pooling the trie nodes into an intermediate memory cache
-		tmpHash = common.BytesToRootExtHash(hash)
+		if rootFlag {
+			tmpHash = common.BytesToRootExtHash(hash)
+		} else {
+			tmpHash = common.BytesToExtHash(hash)
+		}
 
 		db.lock.Lock()
 		db.insert(tmpHash, lenEncoded, n)

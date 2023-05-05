@@ -287,7 +287,6 @@ func generateTrieRoot(it Iterator, accountHash common.Hash, generatorFn trieGene
 				}(it.Hash())
 				fullData, err = rlp.EncodeToBytes(serializer)
 				if err != nil {
-					// results <- err 		//@jk.oh
 					return stop(err)
 				}
 			}
@@ -329,7 +328,7 @@ func trieGenerate(in chan trieKV, out chan common.Hash) {
 	if db == nil {
 		root = t.Hash().ToHash()
 	} else {
-		tmpRoot, _ := t.Commit(nil)
+		tmpRoot, _ := t.Commit(nil, true)
 		root = tmpRoot.ToHash()
 	}
 	out <- root

@@ -59,8 +59,9 @@ type ChainReader interface {
 	State() (*state.StateDB, error)
 }
 
-//go:generate mockgen -destination=consensus/mocks/engine_mock.go -package=mocks github.com/klaytn/klaytn/consensus Engine
 // Engine is an algorithm agnostic consensus engine.
+//
+//go:generate mockgen -destination=consensus/mocks/engine_mock.go -package=mocks github.com/klaytn/klaytn/consensus Engine
 type Engine interface {
 	// Author retrieves the Klaytn address of the account that minted the given
 	// block.

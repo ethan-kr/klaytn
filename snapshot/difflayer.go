@@ -271,6 +271,7 @@ func (dl *diffLayer) Account(hash common.Hash) (account.Account, error) {
 	} else if err := rlp.DecodeBytes(data, serializer); err != nil {
 		panic(err)
 	}
+	//serializer := tmpSerializer.TransCopy()
 	return serializer.GetAccount(), nil
 }
 

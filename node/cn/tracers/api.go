@@ -258,8 +258,8 @@ func (api *API) TraceChain(ctx context.Context, start, end rpc.BlockNumber, conf
 // traceChain configures a new tracer according to the provided configuration, and
 // executes all the transactions contained within.
 // The traceChain operates in two modes: subscription mode and rpc mode
-//  - if notifier and sub is not nil, it works as a subscription mode and returns nothing
-//  - if those parameters are nil, it works as a rpc mode and returns the block trace results, so it can pass the result through rpc-call
+//   - if notifier and sub is not nil, it works as a subscription mode and returns nothing
+//   - if those parameters are nil, it works as a rpc mode and returns the block trace results, so it can pass the result through rpc-call
 func (api *API) traceChain(start, end *types.Block, config *TraceConfig, notifier *rpc.Notifier, sub *rpc.Subscription) (map[uint64]*blockTraceResult, error) {
 	// Prepare all the states for tracing. Note this procedure can take very
 	// long time. Timeout mechanism is necessary.

@@ -367,9 +367,7 @@ func (_GovParam *GovParamTransactorRaw) Transact(opts *bind.TransactOpts, method
 //
 // Solidity: function checkpoints(string name) view returns((uint256,bool,bytes)[])
 func (_GovParam *GovParamCaller) Checkpoints(opts *bind.CallOpts, name string) ([]IGovParamParam, error) {
-	var (
-		ret0 = new([]IGovParamParam)
-	)
+	ret0 := new([]IGovParamParam)
 	out := ret0
 	err := _GovParam.contract.Call(opts, out, "checkpoints", name)
 	return *ret0, err
@@ -423,9 +421,7 @@ func (_GovParam *GovParamCallerSession) GetAllCheckpoints() ([]string, [][]IGovP
 //
 // Solidity: function getAllParamNames() view returns(string[])
 func (_GovParam *GovParamCaller) GetAllParamNames(opts *bind.CallOpts) ([]string, error) {
-	var (
-		ret0 = new([]string)
-	)
+	ret0 := new([]string)
 	out := ret0
 	err := _GovParam.contract.Call(opts, out, "getAllParamNames")
 	return *ret0, err
@@ -569,9 +565,7 @@ func (_GovParam *GovParamCallerSession) GetParamAt(name string, blockNumber *big
 //
 // Solidity: function owner() view returns(address)
 func (_GovParam *GovParamCaller) Owner(opts *bind.CallOpts) (common.Address, error) {
-	var (
-		ret0 = new(common.Address)
-	)
+	ret0 := new(common.Address)
 	out := ret0
 	err := _GovParam.contract.Call(opts, out, "owner")
 	return *ret0, err
@@ -595,9 +589,7 @@ func (_GovParam *GovParamCallerSession) Owner() (common.Address, error) {
 //
 // Solidity: function paramNames(uint256 ) view returns(string)
 func (_GovParam *GovParamCaller) ParamNames(opts *bind.CallOpts, arg0 *big.Int) (string, error) {
-	var (
-		ret0 = new(string)
-	)
+	ret0 := new(string)
 	out := ret0
 	err := _GovParam.contract.Call(opts, out, "paramNames", arg0)
 	return *ret0, err
@@ -933,7 +925,6 @@ type GovParamSetParam struct {
 //
 // Solidity: event SetParam(string name, bool exists, bytes value, uint256 activation)
 func (_GovParam *GovParamFilterer) FilterSetParam(opts *bind.FilterOpts) (*GovParamSetParamIterator, error) {
-
 	logs, sub, err := _GovParam.contract.FilterLogs(opts, "SetParam")
 	if err != nil {
 		return nil, err
@@ -945,7 +936,6 @@ func (_GovParam *GovParamFilterer) FilterSetParam(opts *bind.FilterOpts) (*GovPa
 //
 // Solidity: event SetParam(string name, bool exists, bytes value, uint256 activation)
 func (_GovParam *GovParamFilterer) WatchSetParam(opts *bind.WatchOpts, sink chan<- *GovParamSetParam) (event.Subscription, error) {
-
 	logs, sub, err := _GovParam.contract.WatchLogs(opts, "SetParam")
 	if err != nil {
 		return nil, err
@@ -1155,9 +1145,7 @@ func (_IGovParam *IGovParamTransactorRaw) Transact(opts *bind.TransactOpts, meth
 //
 // Solidity: function checkpoints(string name) view returns((uint256,bool,bytes)[])
 func (_IGovParam *IGovParamCaller) Checkpoints(opts *bind.CallOpts, name string) ([]IGovParamParam, error) {
-	var (
-		ret0 = new([]IGovParamParam)
-	)
+	ret0 := new([]IGovParamParam)
 	out := ret0
 	err := _IGovParam.contract.Call(opts, out, "checkpoints", name)
 	return *ret0, err
@@ -1211,9 +1199,7 @@ func (_IGovParam *IGovParamCallerSession) GetAllCheckpoints() ([]string, [][]IGo
 //
 // Solidity: function getAllParamNames() view returns(string[])
 func (_IGovParam *IGovParamCaller) GetAllParamNames(opts *bind.CallOpts) ([]string, error) {
-	var (
-		ret0 = new([]string)
-	)
+	ret0 := new([]string)
 	out := ret0
 	err := _IGovParam.contract.Call(opts, out, "getAllParamNames")
 	return *ret0, err
@@ -1357,9 +1343,7 @@ func (_IGovParam *IGovParamCallerSession) GetParamAt(name string, blockNumber *b
 //
 // Solidity: function paramNames(uint256 idx) view returns(string)
 func (_IGovParam *IGovParamCaller) ParamNames(opts *bind.CallOpts, idx *big.Int) (string, error) {
-	var (
-		ret0 = new(string)
-	)
+	ret0 := new(string)
 	out := ret0
 	err := _IGovParam.contract.Call(opts, out, "paramNames", idx)
 	return *ret0, err
@@ -1501,7 +1485,6 @@ type IGovParamSetParam struct {
 //
 // Solidity: event SetParam(string name, bool exists, bytes value, uint256 activation)
 func (_IGovParam *IGovParamFilterer) FilterSetParam(opts *bind.FilterOpts) (*IGovParamSetParamIterator, error) {
-
 	logs, sub, err := _IGovParam.contract.FilterLogs(opts, "SetParam")
 	if err != nil {
 		return nil, err
@@ -1513,7 +1496,6 @@ func (_IGovParam *IGovParamFilterer) FilterSetParam(opts *bind.FilterOpts) (*IGo
 //
 // Solidity: event SetParam(string name, bool exists, bytes value, uint256 activation)
 func (_IGovParam *IGovParamFilterer) WatchSetParam(opts *bind.WatchOpts, sink chan<- *IGovParamSetParam) (event.Subscription, error) {
-
 	logs, sub, err := _IGovParam.contract.WatchLogs(opts, "SetParam")
 	if err != nil {
 		return nil, err
@@ -1716,9 +1698,7 @@ func (_Ownable *OwnableTransactorRaw) Transact(opts *bind.TransactOpts, method s
 //
 // Solidity: function owner() view returns(address)
 func (_Ownable *OwnableCaller) Owner(opts *bind.CallOpts) (common.Address, error) {
-	var (
-		ret0 = new(common.Address)
-	)
+	ret0 := new(common.Address)
 	out := ret0
 	err := _Ownable.contract.Call(opts, out, "owner")
 	return *ret0, err
@@ -1858,7 +1838,6 @@ type OwnableOwnershipTransferred struct {
 //
 // Solidity: event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
 func (_Ownable *OwnableFilterer) FilterOwnershipTransferred(opts *bind.FilterOpts, previousOwner []common.Address, newOwner []common.Address) (*OwnableOwnershipTransferredIterator, error) {
-
 	var previousOwnerRule []interface{}
 	for _, previousOwnerItem := range previousOwner {
 		previousOwnerRule = append(previousOwnerRule, previousOwnerItem)
@@ -1879,7 +1858,6 @@ func (_Ownable *OwnableFilterer) FilterOwnershipTransferred(opts *bind.FilterOpt
 //
 // Solidity: event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
 func (_Ownable *OwnableFilterer) WatchOwnershipTransferred(opts *bind.WatchOpts, sink chan<- *OwnableOwnershipTransferred, previousOwner []common.Address, newOwner []common.Address) (event.Subscription, error) {
-
 	var previousOwnerRule []interface{}
 	for _, previousOwnerItem := range previousOwner {
 		previousOwnerRule = append(previousOwnerRule, previousOwnerItem)
