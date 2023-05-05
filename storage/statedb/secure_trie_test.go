@@ -62,7 +62,7 @@ func makeTestSecureTrie() (*Database, *SecureTrie, map[string][]byte) {
 			trie.Update(key, val)
 		}
 	}
-	trie.Commit(nil)
+	trie.Commit(nil, true)
 
 	// Return the generated trie
 	return triedb, trie, content
@@ -141,7 +141,7 @@ func TestSecureTrieConcurrency(t *testing.T) {
 					tries[index].Update(key, val)
 				}
 			}
-			tries[index].Commit(nil)
+			tries[index].Commit(nil, true)
 		}(i)
 	}
 	// Wait for all threads to finish

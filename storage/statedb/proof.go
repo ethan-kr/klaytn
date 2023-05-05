@@ -92,11 +92,13 @@ func (t *Trie) Prove(key []byte, fromLevel uint, proofDB ProofDBWriter) error {
 				fromLevel--
 			} else {
 				enc, _ := rlp.EncodeToBytes(n)
-				reEnc := ExtHashFilter(n, enc)
-				if !ok {
-					hash = crypto.Keccak256(reEnc)
+				if common.ExtHashDisableFlag {
+					enc = ExtHashFilter(n, enc)
 				}
-				proofDB.WriteMerkleProof(hash, reEnc)
+				if !ok {
+					hash = crypto.Keccak256(enc)
+				}
+				proofDB.WriteMerkleProof(hash, enc)
 			}
 		}
 	}

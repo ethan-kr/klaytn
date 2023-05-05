@@ -61,7 +61,6 @@ var (
 	errStringLengthExceedsAddressLength        = errors.New("the string length exceeds the address length (20)")
 	errEmptyString                             = errors.New("empty string")
 	ExtHashDisableFlag                  bool   = true
-	DelHashFlag                         bool   = false
 )
 
 func init() {

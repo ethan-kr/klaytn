@@ -1681,7 +1681,7 @@ func (dbm *databaseManager) WriteIstanbulSnapshot(hash common.Hash, blob []byte)
 // Merkle Proof operation.
 func (dbm *databaseManager) WriteMerkleProof(key, value []byte) {
 	db := dbm.getDatabase(MiscDB)
-	if err := db.Put(key, value); err != nil {
+	if err := db.Put(GetKeyByBytes(key), value); err != nil {
 		logger.Crit("Failed to write merkle proof", "err", err)
 	}
 }
@@ -1764,7 +1764,7 @@ func (dbm *databaseManager) ReadCachedTrieNode(hash common.ExtHash) ([]byte, err
 	defer dbm.lockInMigration.RUnlock()
 
 	if dbm.inMigration {
-		if val, err := dbm.GetStateTrieMigrationDB().Get(hash.ToHash().Bytes()); err == nil {
+		if val, err := dbm.GetStateTrieMigrationDB().Get(GetKeyByExtHash(hash)); err == nil {
 			return val, nil
 		} else if err != dataNotFoundErr {
 			// TODO-Klaytn-Database Need to be properly handled
@@ -1828,7 +1828,7 @@ func (dbm *databaseManager) ReadPreimage(hash common.Hash) []byte {
 
 // Cached Trie Node operation.
 func (dbm *databaseManager) ReadCachedTrieNodeFromNew(hash common.ExtHash) ([]byte, error) {
-	return dbm.GetStateTrieMigrationDB().Get(hash.ToHash().Bytes())
+	return dbm.GetStateTrieMigrationDB().Get(GetKeyByExtHash(hash))
 }
 
 // Cached Trie Node Preimage operation.
@@ -1863,7 +1863,7 @@ func (dbm *databaseManager) ReadPreimageFromNew(hash common.Hash) []byte {
 
 func (dbm *databaseManager) ReadCachedTrieNodeFromOld(hash common.ExtHash) ([]byte, error) {
 	db := dbm.getDatabase(StateTrieDB)
-	return db.Get(hash.ToHash().Bytes())
+	return db.Get(GetKeyByExtHash(hash))
 }
 
 // Cached Trie Node Preimage operation.
@@ -2865,7 +2865,7 @@ func DeleteStateDBKey(dbm DBManager, key []byte, pos int) error {
 	if dbm == nil {
 		return nil
 	}
-	if !common.DelHashFlag {
+	if common.ExtHashDisableFlag {
 		return nil
 	} else {
 		var tmpVal [4]byte

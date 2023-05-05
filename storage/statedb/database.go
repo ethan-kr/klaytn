@@ -21,7 +21,6 @@
 package statedb
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -29,7 +28,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/klaytn/klaytn/blockchain/types/account"
 	"github.com/klaytn/klaytn/common"
 	"github.com/klaytn/klaytn/log"
 	"github.com/klaytn/klaytn/rlp"
@@ -774,7 +772,7 @@ func (db *Database) Cap(limit common.StorageSize) error {
 		// Fetch the oldest referenced node and push into the batch
 		node := db.nodes[oldest]
 		enc := node.rlp()
-		if err := database.PutAndWriteBatchesOverThreshold(batch, oldest.ToHash().Bytes(), enc); err != nil {
+		if err := database.PutAndWriteBatchesOverThreshold(batch, database.GetKeyByExtHash(oldest), enc); err != nil {
 			db.lock.RUnlock()
 			return err
 		}
@@ -898,7 +896,7 @@ func (db *Database) writeBatchNodes(node common.ExtHash) error {
 			continue
 		}
 
-		if err := batch.Put(result.key, result.val); err != nil {
+		if err := batch.Put(database.GetKeyByBytes(result.key), result.val); err != nil {
 			return err
 		}
 		if batch.ValueSize() > database.IdealBatchSize {
@@ -912,20 +910,16 @@ func (db *Database) writeBatchNodes(node common.ExtHash) error {
 	enc := rootNode.rlp()
 	if common.ExtHashDisableFlag {
 		enc, _ = common.RlpPaddingFilter(enc)
-		if err := batch.Put(node.ToHash().Bytes(), enc); err != nil {
-			return err
-		}
-	} else {
-		if err := batch.Put(node.Bytes(), enc); err != nil {
-			return err
-		}
+	}
+	if err := batch.Put(database.GetKeyByExtHash(node), enc); err != nil {
+		return err
 	}
 	if err := batch.Write(); err != nil {
 		logger.Error("Failed to write trie to disk", "err", err)
 		return err
 	}
 	if db.trieNodeCache != nil {
-		db.trieNodeCache.Set(node[:], enc)
+		db.trieNodeCache.Set(database.GetKeyByExtHash(node), enc)
 	}
 
 	return nil
@@ -1265,13 +1259,13 @@ func NodeTrace(db *Database, hash common.ExtHash, flag int) (reHash common.ExtHa
 		if err := rlp.Encode(&tmp, tmpNode); err != nil {
 			panic("encode error: " + err.Error())
 		}
-		fmt.Printf("%d hash : %x\nvalue : %x\n\n", flag, hash, tmp)
 		return hash
 	case *shortNode:
 		tmpNode := &shortNode{Key: n.Key, flags: n.flags}
 
 		if tmpValueNode, ok := n.Val.(valueNode); ok && len(tmpValueNode) > common.ExtHashLength {
-			serializerLH := account.NewAccountLHSerializer()
+			tmpNode.Val = tmpValueNode	// 2023.0505 CheckThis
+			/*serializerLH := account.NewAccountLHSerializer()
 			if err := rlp.Decode(bytes.NewReader(tmpValueNode), serializerLH); err != nil {
 				tmpNode.Val = tmpValueNode
 			} else {
@@ -1290,7 +1284,7 @@ func NodeTrace(db *Database, hash common.ExtHash, flag int) (reHash common.ExtHa
 					tmpNode.Val = tmpValueNode
 				}
 
-			}
+			}*/
 		} else if tmpHashNode, ok := n.Val.(hashNode); ok {
 			tmpNode.Val = toHashNode(tmpHashNode[:common.HashLength])
 		} else {
@@ -1300,7 +1294,6 @@ func NodeTrace(db *Database, hash common.ExtHash, flag int) (reHash common.ExtHa
 		if err := rlp.Encode(&tmp, tmpNode); err != nil {
 			panic("encode error: " + err.Error())
 		}
-		fmt.Printf("%d hash : %x\nvalue : %x\n\n", flag, hash, tmp)
 		return hash
 	}
 	panic("encode error: " + err.Error())

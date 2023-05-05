@@ -46,7 +46,6 @@ import (
 // blocking mode, waiting for it to be shut down.
 func RunKlaytnNode(ctx *cli.Context) error {
 	common.ExtHashDisableFlag = false
-	common.DelHashFlag = true
 	fullNode := MakeFullNode(ctx)
 	startNode(ctx, fullNode)
 	fullNode.Wait()

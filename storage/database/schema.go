@@ -261,3 +261,20 @@ func makeKey(prefix []byte, num uint64) []byte {
 func databaseDirKey(dbEntryType uint64) []byte {
 	return append(databaseDirPrefix, common.Int64ToByteBigEndian(dbEntryType)...)
 }
+
+func GetKeyByExtHash(hash common.ExtHash) []byte {
+	if common.ExtHashDisableFlag {
+		return hash.ToHash().Bytes()
+	}
+	return hash.Bytes()
+}
+
+func GetKeyByBytes(hash []byte) []byte {
+	if common.ExtHashDisableFlag {
+		keyLen := len(hash)
+		if keyLen >= common.ExtHashLength {
+			return hash[:keyLen - common.ExtPadLength]
+		}
+	}
+	return hash
+}

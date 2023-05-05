@@ -72,7 +72,7 @@ func TestGeneration(t *testing.T) {
 	stTrie.Update([]byte("key-1"), []byte("val-1")) // 0x1314700b81afc49f94db3623ef1df38f3ed18b73a1b7ea2f6c095118cf6118a0
 	stTrie.Update([]byte("key-2"), []byte("val-2")) // 0x18a0f4d79cff4459642dd7604f303886ad9d77c30cf3d7d7cedb3a693ab6d371
 	stTrie.Update([]byte("key-3"), []byte("val-3")) // 0x51c71a47af0695957647fb68766d0becee77e953df17c29b3c2f25436f055c78
-	stTrie.Commit(nil)                              // Root: 0xddefcd9376dd029653ef384bd2f0a126bb755fe84fdcc9e7cf421ba454f2bc67
+	stTrie.Commit(nil, true)                              // Root: 0xddefcd9376dd029653ef384bd2f0a126bb755fe84fdcc9e7cf421ba454f2bc67
 
 	accTrie, _ := statedb.NewSecureTrie(common.InitExtHash(), triedb)
 
@@ -91,7 +91,7 @@ func TestGeneration(t *testing.T) {
 	val, _ = rlp.EncodeToBytes(serializer3) // 0x8c2477df4801bbf88c6636445a2a9feff54c098cc218df403dc3f1007add780c
 	accTrie.Update([]byte("acc-3"), val)
 
-	root, _ := accTrie.Commit(nil) // Root: 0x4a651234bc4b8c7462b5ad4eb95bbb724eb636fed72bb5278d886f9ea4c345f8
+	root, _ := accTrie.Commit(nil, true) // Root: 0x4a651234bc4b8c7462b5ad4eb95bbb724eb636fed72bb5278d886f9ea4c345f8
 
 	// TODO-Klaytn-Snapshot update proper block number
 	triedb.Commit(root, false, 0)
@@ -140,7 +140,7 @@ func TestGenerateExistentState(t *testing.T) {
 	stTrie.Update([]byte("key-1"), []byte("val-1")) // 0x1314700b81afc49f94db3623ef1df38f3ed18b73a1b7ea2f6c095118cf6118a0
 	stTrie.Update([]byte("key-2"), []byte("val-2")) // 0x18a0f4d79cff4459642dd7604f303886ad9d77c30cf3d7d7cedb3a693ab6d371
 	stTrie.Update([]byte("key-3"), []byte("val-3")) // 0x51c71a47af0695957647fb68766d0becee77e953df17c29b3c2f25436f055c78
-	stTrie.Commit(nil)                              // Root: 0xddefcd9376dd029653ef384bd2f0a126bb755fe84fdcc9e7cf421ba454f2bc67
+	stTrie.Commit(nil, true)                              // Root: 0xddefcd9376dd029653ef384bd2f0a126bb755fe84fdcc9e7cf421ba454f2bc67
 
 	accTrie, _ := statedb.NewSecureTrie(common.InitExtHash(), triedb)
 	acc, _ := genSmartContractAccount(uint64(0), big.NewInt(1), stTrie.Hash().ToHash(), emptyCode.Bytes())
@@ -168,7 +168,7 @@ func TestGenerateExistentState(t *testing.T) {
 	diskdb.WriteStorageSnapshot(hashData([]byte("acc-3")), hashData([]byte("key-2")), []byte("val-2"))
 	diskdb.WriteStorageSnapshot(hashData([]byte("acc-3")), hashData([]byte("key-3")), []byte("val-3"))
 
-	root, _ := accTrie.Commit(nil) // Root: 0xe3712f1a226f3782caca78ca770ccc19ee000552813a9f59d479f8611db9b1fd
+	root, _ := accTrie.Commit(nil, true) // Root: 0xe3712f1a226f3782caca78ca770ccc19ee000552813a9f59d479f8611db9b1fd
 	// TODO-Klaytn-Snapshot put proper block number
 	triedb.Commit(root, false, 0)
 
@@ -255,12 +255,12 @@ func (t *testHelper) makeStorageTrie(keys []string, vals []string) common.Hash {
 	for i, k := range keys {
 		stTrie.Update([]byte(k), []byte(vals[i]))
 	}
-	root, _ := stTrie.Commit(nil)
+	root, _ := stTrie.Commit(nil, true)
 	return root.ToHash()
 }
 
 func (t *testHelper) Generate() (common.Hash, *diskLayer) {
-	root, _ := t.accTrie.Commit(nil)
+	root, _ := t.accTrie.Commit(nil, true)
 	// TODO-Klaytn-Snapshot input proper block number
 	t.triedb.Commit(root, false, 0)
 	snap := generateSnapshot(t.diskdb, t.triedb, 16, root.ToHash())
@@ -462,7 +462,7 @@ func TestGenerateCorruptAccountTrie(t *testing.T) {
 	serializer3 := account.NewAccountLHSerializerWithAccount(acc3)
 	val, _ = rlp.EncodeToBytes(serializer3)
 	tr.Update([]byte("acc-3"), val) // 0x19ead688e907b0fab07176120dceec244a72aff2f0aa51e8b827584e378772f4
-	tr.Commit(nil)                  // Root: 0xa04693ea110a31037fb5ee814308a6f1d76bdab0b11676bdf4541d2de55ba978
+	tr.Commit(nil, true)                  // Root: 0xa04693ea110a31037fb5ee814308a6f1d76bdab0b11676bdf4541d2de55ba978
 
 	// Delete an account trie leaf and ensure the generator chokes
 	// TODO-Klaytn-Snapshot put propoer block number
@@ -501,7 +501,7 @@ func TestGenerateMissingStorageTrie(t *testing.T) {
 	stTrie.Update([]byte("key-1"), []byte("val-1")) // 0x1314700b81afc49f94db3623ef1df38f3ed18b73a1b7ea2f6c095118cf6118a0
 	stTrie.Update([]byte("key-2"), []byte("val-2")) // 0x18a0f4d79cff4459642dd7604f303886ad9d77c30cf3d7d7cedb3a693ab6d371
 	stTrie.Update([]byte("key-3"), []byte("val-3")) // 0x51c71a47af0695957647fb68766d0becee77e953df17c29b3c2f25436f055c78
-	stTrie.Commit(nil)                              // Root: 0xddefcd9376dd029653ef384bd2f0a126bb755fe84fdcc9e7cf421ba454f2bc67
+	stTrie.Commit(nil, true)                              // Root: 0xddefcd9376dd029653ef384bd2f0a126bb755fe84fdcc9e7cf421ba454f2bc67
 
 	accTrie, _ := statedb.NewSecureTrie(common.InitExtHash(), triedb)
 	acc, _ := genSmartContractAccount(0, big.NewInt(1), stTrie.Hash().ToHash(), emptyCode.Bytes())
@@ -516,7 +516,7 @@ func TestGenerateMissingStorageTrie(t *testing.T) {
 	acc, _ = genSmartContractAccount(0, big.NewInt(3), stTrie.Hash().ToHash(), emptyCode.Bytes())
 	val, _ = rlp.EncodeToBytes(account.NewAccountLHSerializerWithAccount(acc))
 	accTrie.Update([]byte("acc-3"), val) // 0x8c2477df4801bbf88c6636445a2a9feff54c098cc218df403dc3f1007add780c
-	accTrie.Commit(nil)                  // Root: 0xa2282b99de1fc11e32d26bee37707ef49a6978b2d375796a1b026a497193a2ef
+	accTrie.Commit(nil, true)                  // Root: 0xa2282b99de1fc11e32d26bee37707ef49a6978b2d375796a1b026a497193a2ef
 
 	// We can only corrupt the disk database, so flush the tries out
 	triedb.Reference(
@@ -562,7 +562,7 @@ func TestGenerateCorruptStorageTrie(t *testing.T) {
 	stTrie.Update([]byte("key-1"), []byte("val-1")) // 0x1314700b81afc49f94db3623ef1df38f3ed18b73a1b7ea2f6c095118cf6118a0
 	stTrie.Update([]byte("key-2"), []byte("val-2")) // 0x18a0f4d79cff4459642dd7604f303886ad9d77c30cf3d7d7cedb3a693ab6d371
 	stTrie.Update([]byte("key-3"), []byte("val-3")) // 0x51c71a47af0695957647fb68766d0becee77e953df17c29b3c2f25436f055c78
-	stTrie.Commit(nil)                              // Root: 0xddefcd9376dd029653ef384bd2f0a126bb755fe84fdcc9e7cf421ba454f2bc67
+	stTrie.Commit(nil, true)                              // Root: 0xddefcd9376dd029653ef384bd2f0a126bb755fe84fdcc9e7cf421ba454f2bc67
 
 	accTrie, _ := statedb.NewSecureTrie(common.InitExtHash(), triedb)
 	acc, _ := genSmartContractAccount(0, big.NewInt(1), stTrie.Hash().ToHash(), emptyCode.Bytes())
@@ -579,7 +579,7 @@ func TestGenerateCorruptStorageTrie(t *testing.T) {
 	serializer = account.NewAccountLHSerializerWithAccount(acc)
 	val, _ = rlp.EncodeToBytes(serializer)
 	accTrie.Update([]byte("acc-3"), val) // 0x8c2477df4801bbf88c6636445a2a9feff54c098cc218df403dc3f1007add780c
-	accTrie.Commit(nil)                  // Root: 0x4a651234bc4b8c7462b5ad4eb95bbb724eb636fed72bb5278d886f9ea4c345f8
+	accTrie.Commit(nil, true)                  // Root: 0x4a651234bc4b8c7462b5ad4eb95bbb724eb636fed72bb5278d886f9ea4c345f8
 
 	// We can only corrupt the disk database, so flush the tries out
 	triedb.Reference(
@@ -618,7 +618,7 @@ func getStorageTrie(n int, triedb *statedb.Database) *statedb.SecureTrie {
 		v := fmt.Sprintf("val-%d", i)
 		stTrie.Update([]byte(k), []byte(v))
 	}
-	stTrie.Commit(nil)
+	stTrie.Commit(nil, true)
 	return stTrie
 }
 
@@ -652,7 +652,7 @@ func TestGenerateWithExtraAccounts(t *testing.T) {
 		diskdb.WriteStorageSnapshot(key, hashData([]byte("b-key-2")), []byte("b-val-2"))
 		diskdb.WriteStorageSnapshot(key, hashData([]byte("b-key-3")), []byte("b-val-3"))
 	}
-	root, _ := accTrie.Commit(nil)
+	root, _ := accTrie.Commit(nil, true)
 	t.Logf("root: %x", root)
 	// TODO-Klaytn-Snapshot put proper block number
 	triedb.Commit(root, false, 0)
@@ -709,7 +709,7 @@ func TestGenerateWithManyExtraAccounts(t *testing.T) {
 			diskdb.WriteAccountSnapshot(key, val)
 		}
 	}
-	root, _ := accTrie.Commit(nil)
+	root, _ := accTrie.Commit(nil, true)
 	t.Logf("root: %x", root)
 	// TODO-Klaytn-Snapshot put proper block number
 	triedb.Commit(root, false, 0)
@@ -761,7 +761,7 @@ func TestGenerateWithExtraBeforeAndAfter(t *testing.T) {
 		diskdb.WriteAccountSnapshot(common.HexToHash("0x07"), val)
 	}
 
-	root, _ := accTrie.Commit(nil)
+	root, _ := accTrie.Commit(nil, true)
 	t.Logf("root: %x", root)
 	// TODO-Klaytn-Snapshot put proper block number
 	triedb.Commit(root, false, 0)
@@ -804,7 +804,7 @@ func TestGenerateWithMalformedSnapdata(t *testing.T) {
 		diskdb.WriteAccountSnapshot(common.HexToHash("0x05"), junk)
 	}
 
-	root, _ := accTrie.Commit(nil)
+	root, _ := accTrie.Commit(nil, true)
 	t.Logf("root: %x", root)
 	// TODO-Klaytn-Snapshot put proper block number
 	triedb.Commit(root, false, 0)
