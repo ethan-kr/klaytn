@@ -263,14 +263,14 @@ func databaseDirKey(dbEntryType uint64) []byte {
 }
 
 func GetKeyByExtHash(hash common.ExtHash) []byte {
-	if common.ExtHashDisableFlag {
+	if !common.ExtHashActiveFlag {
 		return hash.ToHash().Bytes()
 	}
 	return hash.Bytes()
 }
 
 func GetKeyByBytes(hash []byte) []byte {
-	if common.ExtHashDisableFlag {
+	if !common.ExtHashActiveFlag {
 		keyLen := len(hash)
 		if keyLen >= common.ExtHashLength {
 			return hash[:keyLen - common.ExtPadLength]

@@ -92,7 +92,7 @@ func (t *Trie) Prove(key []byte, fromLevel uint, proofDB ProofDBWriter) error {
 				fromLevel--
 			} else {
 				enc, _ := rlp.EncodeToBytes(n)
-				if common.ExtHashDisableFlag {
+				if !common.ExtHashActiveFlag {
 					enc = ExtHashFilter(n, enc)
 				}
 				if !ok {

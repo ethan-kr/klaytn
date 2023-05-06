@@ -2865,7 +2865,7 @@ func DeleteStateDBKey(dbm DBManager, key []byte, pos int) error {
 	if dbm == nil {
 		return nil
 	}
-	if common.ExtHashDisableFlag {
+	if !common.ExtHashActiveFlag {
 		return nil
 	} else {
 		var tmpVal [4]byte

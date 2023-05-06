@@ -45,7 +45,7 @@ import (
 // It creates a default node based on the command line arguments and runs it in
 // blocking mode, waiting for it to be shut down.
 func RunKlaytnNode(ctx *cli.Context) error {
-	common.ExtHashDisableFlag = false
+	common.ExtHashActiveFlag = true
 	fullNode := MakeFullNode(ctx)
 	startNode(ctx, fullNode)
 	fullNode.Wait()

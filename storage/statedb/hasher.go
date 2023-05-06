@@ -328,7 +328,7 @@ func (h *hasher) store(n node, db *Database, force, rootFlag bool) (node, uint16
 		if err := rlp.Encode(&h.tmp, n); err != nil {
 			panic("encode error: " + err.Error())
 		}
-		if common.ExtHashDisableFlag {
+		if !common.ExtHashActiveFlag {
 			h.tmp = ExtHashFilter(n, h.tmp)
 		}
 
@@ -338,7 +338,7 @@ func (h *hasher) store(n node, db *Database, force, rootFlag bool) (node, uint16
 		return n, lenEncoded, tmpHash // Nodes smaller than 32 bytes are stored inside their parent
 	}
 	if hash == nil {
-		if common.ExtHashDisableFlag {
+		if !common.ExtHashActiveFlag {
 			hash = h.makeHashNode(h.tmp)
 		} else {
 			hash = h.makeHashNode(ExtHashFilter(n, h.tmp))

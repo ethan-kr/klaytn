@@ -60,11 +60,11 @@ var (
 	LegacyByte                                 = hexutil.MustDecode("0x000000000045")
 	errStringLengthExceedsAddressLength        = errors.New("the string length exceeds the address length (20)")
 	errEmptyString                             = errors.New("empty string")
-	ExtHashDisableFlag                  bool   = true
+	ExtHashActiveFlag                   bool   = false
 )
 
 func init() {
-	if ExtHashDisableFlag {
+	if !ExtHashActiveFlag {
 		LegacyByte = RootByte
 	}
 }
@@ -84,7 +84,7 @@ func InitExtHash() (extH ExtHash) {
 }
 
 func GetExtHashPadBytes(hash []byte) (padding []byte) {
-	if ExtHashDisableFlag {
+	if !ExtHashActiveFlag {
 		return RootByte
 	}
 	if len(hash) == ExtHashLength {

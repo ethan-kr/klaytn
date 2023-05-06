@@ -908,7 +908,7 @@ func (db *Database) writeBatchNodes(node common.ExtHash) error {
 	}
 
 	enc := rootNode.rlp()
-	if common.ExtHashDisableFlag {
+	if !common.ExtHashActiveFlag {
 		enc, _ = common.RlpPaddingFilter(enc)
 	}
 	if err := batch.Put(database.GetKeyByExtHash(node), enc); err != nil {
@@ -999,7 +999,7 @@ func (db *Database) commit(hash common.ExtHash, resultCh chan<- commitResult) {
 		db.commit(child, resultCh)
 	}
 	enc := node.rlp()
-	if common.ExtHashDisableFlag {
+	if !common.ExtHashActiveFlag {
 		enc, _ = common.RlpPaddingFilter(enc)
 	}
 	resultCh <- commitResult{hash[:], enc}
